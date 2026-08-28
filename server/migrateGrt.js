@@ -1,0 +1,103 @@
+import pool from './src/config/db.js';
+
+async function migrate() {
+  try {
+    console.log('=== MIGRACION GRT (Guia de Remision Transportista) ===');
+
+    console.log('Creando tabla config_empresa (emisor)...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS config_empresa (
+        id_config      SERIAL PRIMARY KEY,
+        ruc            VARCHAR(11)  NOT NULL,
+        razon_social   VARCHAR(200) NOT NULL,
+        nombre_comercial VARCHAR(150),
+        cod_ubigeo     VARCHAR(6)   NOT NULL DEFAULT '150101',
+        direccion      VARCHAR(250) NOT NULL,
+        es_activa      BOOLEAN DEFAULT TRUE,
+        cod_tip_nif    VARCHAR(2)   DEFAULT '6'
+      );
+    `);
+
+    console.log('Sembrando datos demo emisor (20100100100)...');
+    await pool.query(`
+      INSERT INTO config_empresa (ruc, razon_social, nombre_comercial, cod_ubigeo, direccion, cod_tip_nif)
+      VALUES ('20100100100', 'EMPRESA DEMO SAC', 'DEMO', '150101',
+              'JR. ANCASH NRO. 1050 INT. 1 - LIMA LIMA LIMA', '6')
+      ON CONFLICT DO NOTHING
+    `);
+
+    const grtColumns = [
+      ['fecha_traslado', 'DATE'],
+      ['tipo_transporte', 'INTEGER'],
+      ['peso_bruto', 'NUMERIC(14,3)'],
+      ['unidad_peso_bruto', 'VARCHAR(8) DEFAULT \'KGM\''],
+      ['dir_partida', 'VARCHAR(250)'],
+      ['distrito_partida', 'VARCHAR(100)'],
+      ['ubigeo_partida', 'VARCHAR(6)'],
+      ['dir_llegada', 'VARCHAR(250)'],
+      ['distrito_llegada', 'VARCHAR(100)'],
+      ['ubigeo_llegada', 'VARCHAR(6)'],
+      ['tipo_doc_remitente', 'VARCHAR(2)'],
+      ['num_doc_remitente', 'VARCHAR(15)'],
+      ['razon_social_remitente', 'VARCHAR(200)'],
+      ['destinatario_mismo_remitente', 'BOOLEAN DEFAULT FALSE'],
+      ['tipo_doc_destinatario', 'VARCHAR(2)'],
+      ['num_doc_destinatario', 'VARCHAR(15)'],
+      ['razon_social_destinatario', 'VARCHAR(200)'],
+      ['traslado_total_bienes', 'BOOLEAN DEFAULT FALSE'],
+      ['transporte_subcontratado', 'BOOLEAN DEFAULT FALSE'],
+      ['retorno_envases_vacios', 'BOOLEAN DEFAULT FALSE'],
+      ['retorno_vehiculo_vacio', 'BOOLEAN DEFAULT FALSE'],
+      ['transbordo_programado', 'BOOLEAN DEFAULT FALSE'],
+      ['pagador_flete', 'VARCHAR(1)'],
+      ['nro_registro_mtc', 'VARCHAR(20)'],
+      ['entidad_emisora_aut_transportista', 'VARCHAR(50)'],
+      ['nro_autorizacion_especial_emisora', 'VARCHAR(30)'],
+      ['tipo_doc_transp', 'VARCHAR(2)'],
+      ['num_doc_transp', 'VARCHAR(15)'],
+      ['razon_social_transp', 'VARCHAR(200)'],
+      ['items', 'JSONB'],
+      ['vehiculos_secundarios', 'JSONB'],
+      ['conductores_secundarios', 'JSONB'],
+      ['docs_referenciado', 'JSONB'],
+      ['observaciones', 'VARCHAR(500)'],
+      ['grt_serie', 'VARCHAR(4) DEFAULT \'V001\''],
+      ['grt_correlativo', 'VARCHAR(8)'],
+      ['grt_estado', 'VARCHAR(40) DEFAULT \'BORRADOR\''],
+      ['grt_respuesta', 'JSONB'],
+      ['placa', 'VARCHAR(10)'],
+      ['constancia_tuc', 'VARCHAR(30)'],
+      ['entidad_emisora_aut_vehiculo', 'VARCHAR(10)'],
+      ['nro_autorizacion_especial_vehiculo', 'VARCHAR(30)'],
+      ['tipo_doc_conductor', 'VARCHAR(2)'],
+      ['num_doc_conductor', 'VARCHAR(15)'],
+      ['nombre_conductor', 'VARCHAR(200)'],
+      ['nro_licencia_conduct', 'VARCHAR(20)'],
+      ['cod_tip_gur', 'VARCHAR(2) DEFAULT \'31\''],
+      ['cod_motivo_traslado', 'VARCHAR(2)'],
+      ['modalidad_transporte', 'INTEGER'],
+      ['indicador_m1_l', 'BOOLEAN DEFAULT FALSE'],
+      ['indicador_traslado_total_dam_ds', 'BOOLEAN DEFAULT FALSE'],
+      ['peso_trasladado_parcial_dam_ds', 'NUMERIC(14,3)'],
+      ['nro_bultos', 'VARCHAR(20)'],
+      ['nro_contenedor', 'VARCHAR(20)'],
+      ['num_nif_llegada_partida', 'VARCHAR(20)'],
+      ['cod_puerto_aeropuerto', 'VARCHAR(4)'],
+      ['cod_locacion_puerto_aeropuerto', 'VARCHAR(10)'],
+      ['nombre_puerto_aeropuerto', 'VARCHAR(200)'],
+    ];
+
+    console.log('Agregando columnas GRT a guia_remision...');
+    for (const [name, type] of grtColumns) {
+      await pool.query(`ALTER TABLE guia_remision ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+    }
+
+    console.log('Migracion completada.');
+  } catch (err) {
+    console.error('Error en migracion:', err.message);
+  } finally {
+    await pool.end();
+  }
+}
+
+migrate();

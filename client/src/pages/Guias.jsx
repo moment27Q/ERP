@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { api } from '../api';
 
 const UNIDADES = [
@@ -108,6 +109,8 @@ export default function Guias() {
   const [previewJson, setPreviewJson] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [respuestaMiFact, setRespuestaMiFact] = useState(null);
+  const [respuestaGuardada, setRespuestaGuardada] = useState(null);
   const [filters, setFilters] = useState({ fecha_desde: '', fecha_hasta: '' });
 
   const loadData = async (params = {}) => {
@@ -164,6 +167,7 @@ export default function Guias() {
     setForm(configInicial());
     setValidation([]);
     setError('');
+    setRespuestaGuardada(null);
     setShowForm(true);
   };
 
@@ -223,6 +227,14 @@ export default function Guias() {
       })) : [],
       observaciones: g.observaciones || '',
     });
+    let respStored = null;
+    if (g.grt_respuesta) {
+      try {
+        const parsed = typeof g.grt_respuesta === 'string' ? JSON.parse(g.grt_respuesta) : g.grt_respuesta;
+        if (parsed && (parsed.pdf_bytes || parsed.cadena_para_codigo_qr)) respStored = parsed;
+      } catch { respStored = null; }
+    }
+    setRespuestaGuardada(respStored);
     setValidation([]);
     setError('');
     setShowForm(true);
@@ -324,8 +336,9 @@ export default function Guias() {
       if (r.error_amigable) setError(`${r.error_amigable.mensaje} (${r.error_amigable.campo || ''})`);
       else if (r.mensaje_duplicado) setError(r.mensaje_duplicado);
       else setError('Enviado. Estado SUNAT: ' + (r.estado_documento || r.estado_interno || ''));
+      if (r.pdf_bytes || r.cadena_para_codigo_qr) setRespuestaMiFact(r);
       loadData({ search, ...filters });
-      openEdit({ ...editing, grt_estado: r.estado_interno });
+      openEdit({ ...editing, grt_estado: r.estado_interno, grt_respuesta: JSON.stringify(r) });
     } catch (err) {
       if (err.data?.errores) setValidation(err.data.errores);
       setError(err.message || 'Error al enviar');
@@ -430,6 +443,46 @@ export default function Guias() {
                       return <li key={i}><span className="font-mono">[{campo}]{code ? ` ${code}` : ''}</span> {problema}. {accion ? <em>{accion}</em> : null}</li>;
                     })}
                   </ul>
+                </div>
+              )}
+
+              {respuestaGuardada && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <strong className="text-sm text-green-800">Documento MiFact emitido</strong>
+                    {respuestaGuardada.estado_documento === '102' ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">ACEPTADO</span>
+                    ) : (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${respuestaGuardada.estado_documento === '104' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        Estado {respuestaGuardada.estado_documento || respuestaGuardada.estado_interno || ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      {respuestaGuardada.cadena_para_codigo_qr ? (
+                        <div className="flex flex-col items-center gap-2 border border-gray-200 rounded-lg p-3 bg-white">
+                          <p className="text-xs font-medium text-gray-600">Codigo QR SUNAT</p>
+                          <QRCodeCanvas value={respuestaGuardada.cadena_para_codigo_qr} size={150} level="M" />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">Sin codigo QR.</p>
+                      )}
+                    </div>
+                    <div>
+                      {respuestaGuardada.pdf_bytes ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-gray-600">PDF SUNAT</p>
+                            <a href={`data:application/pdf;base64,${respuestaGuardada.pdf_bytes}`} download="comprobante.pdf" className="text-primary-600 hover:text-primary-800 text-xs font-medium">Descargar PDF</a>
+                          </div>
+                          <iframe title="PDF SUNAT" src={`data:application/pdf;base64,${respuestaGuardada.pdf_bytes}`} className="w-full h-[420px] border border-gray-200 rounded-lg" />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No se obtuvo PDF de SUNAT para este documento.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -865,6 +918,63 @@ export default function Guias() {
               </div>
             )}
             <pre className="p-5 bg-gray-50 text-xs overflow-x-auto">{previewJson}</pre>
+          </div>
+        </div>
+      )}
+
+      {respuestaMiFact && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold">Comprobante MiFact / SUNAT</h2>
+              <button onClick={() => setRespuestaMiFact(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-5">
+              <div className="flex flex-wrap items-start gap-8 mb-4">
+                <div>
+                  <p className="block text-xs font-medium text-gray-600 mb-1">Estado</p>
+                  {respuestaMiFact.estado_documento === '102' ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">ACEPTADO</span>
+                  ) : (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${respuestaMiFact.estado_documento === '104' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {respuestaMiFact.estado_documento ? `Estado ${respuestaMiFact.estado_documento}` : respuestaMiFact.estado_interno || 'SIN ESTADO'}
+                    </span>
+                  )}
+                  {respuestaMiFact.correlativo_cpe && (
+                    <p className="mt-2 text-xs text-gray-500">Serie-Correlativo: <span className="font-mono font-semibold">{respuestaMiFact.correlativo_cpe}</span></p>
+                  )}
+                  {respuestaMiFact.errors && (
+                    <p className="mt-2 text-xs text-red-600 max-w-xs">{respuestaMiFact.errors}</p>
+                  )}
+                </div>
+                {respuestaMiFact.cadena_para_codigo_qr && (
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="block text-xs font-medium text-gray-600 mb-1">Codigo QR SUNAT</p>
+                    <QRCodeCanvas value={respuestaMiFact.cadena_para_codigo_qr} size={160} level="M" />
+                  </div>
+                )}
+              </div>
+
+              {respuestaMiFact.pdf_bytes ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="block text-xs font-medium text-gray-600">PDF SUNAT</p>
+                    <a
+                      href={`data:application/pdf;base64,${respuestaMiFact.pdf_bytes}`}
+                      download="comprobante.pdf"
+                      className="text-primary-600 hover:text-primary-800 text-xs font-medium"
+                    >Descargar PDF</a>
+                  </div>
+                  <iframe
+                    title="PDF SUNAT"
+                    src={`data:application/pdf;base64,${respuestaMiFact.pdf_bytes}`}
+                    className="w-full h-[600px] border border-gray-200 rounded-lg"
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No se obtuvo PDF de SUNAT para este documento.</p>
+              )}
+            </div>
           </div>
         </div>
       )}

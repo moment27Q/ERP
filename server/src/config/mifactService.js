@@ -42,6 +42,7 @@ function normalizeResult(raw) {
     'cdr_sunat', 'codigo_hash', 'correlativo_cpe', 'errors', 'estado_documento',
     'pdf_bytes', 'serie_cpe', 'sunat_description', 'sunat_note', 'sunat_responsecode',
     'ticket_sunat', 'tipo_cpe', 'url', 'xml_enviado', 'url_pdf_sunat',
+    'cadena_para_codigo_qr',
   ];
   const out = {};
   for (const k of keys) {

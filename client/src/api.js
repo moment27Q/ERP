@@ -69,6 +69,7 @@ export const api = {
   createGuia: (body) => request('/guias', { method: 'POST', body: JSON.stringify(body) }),
   updateGuia: (id, body) => request(`/guias/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteGuia: (id) => request(`/guias/${id}`, { method: 'DELETE' }),
+  enviarGuiasMasivo: (ids) => request('/guias/masivo/enviar', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   getDocumentosCobro: (search) => request(`/documentos-cobro${search ? `?search=${search}` : ''}`),
   getDocumentoCobro: (id) => request(`/documentos-cobro/${id}`),
@@ -85,6 +86,23 @@ export const api = {
   estadoGuia: (id) => request(`/mifact/estado-guia/${id}`),
   descargarFactura: (id, tipo) => request(`/mifact/descargar-factura/${id}/${tipo}`),
   descargarGuia: (id, tipo) => request(`/mifact/descargar-guia/${id}/${tipo}`),
+
+  descargarGuiasPdf: async (ids) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/mifact/masivo/descargar-pdfs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { const d = await res.json(); detail = d.error || 'Error del servidor'; } catch { detail = 'Error del servidor'; }
+      const e = new Error(detail);
+      e.status = res.status;
+      throw e;
+    }
+    return res.blob();
+  },
   enviarEmail: (id, email) => request(`/mifact/enviar-email/${id}`, { method: 'POST', body: JSON.stringify({ email }) }),
   anularFactura: (id) => request(`/mifact/anular-factura/${id}`, { method: 'POST' }),
 

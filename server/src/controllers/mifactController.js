@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ZipArchive } from 'archiver';
 import pool from '../config/db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import * as mifact from '../config/mifactService.js';
@@ -90,83 +91,141 @@ function siguienteCorrelativo(corr) {
   return String(n).padStart(8, '0');
 }
 
+// Envia una sola guia a MiFact y actualiza su estado en BD.
+// Devuelve { ok: true, result, estado_interno } o { ok: false, status, error, errores, estado_interno }.
+async function enviarUnaGuia(idGuia) {
+  const doc = await getGuiaGrtCompleta(idGuia);
+  if (!doc) return { ok: false, status: 404, error: 'Guia no encontrada' };
+  await getEmpresaParaDoc(doc);
+
+  if (!doc.fecha) return { ok: false, status: 400, error: 'La guia no tiene fecha de emision.' };
+
+  const correlativo = toStr(doc.numero_guia).replace(/[^0-9]/g, '').slice(-8).padStart(8, '0') || '00000001';
+  const codTipGur = toStr(doc.cod_tip_gur) === '' ? '31' : toStr(doc.cod_tip_gur);
+  doc.cod_tip_gur = codTipGur;
+  const serie = toStr(doc.grt_serie) === '' ? (codTipGur === '09' ? 'T001' : 'V001') : toStr(doc.grt_serie);
+  doc.grt_serie = serie;
+  doc.grt_correlativo = correlativo;
+
+  const validacion = validateGuiaBeforeMiFact(doc);
+  if (!validacion.valid) {
+    await pool.query('UPDATE guia_remision SET grt_estado = $1 WHERE id_guia = $2', ['VALIDANDO', idGuia]);
+    return { ok: false, status: 422, error: 'La guia no cumple la validacion para MiFact', errores: validacion.errors, estado_interno: 'VALIDANDO' };
+  }
+
+  await pool.query('UPDATE guia_remision SET grt_estado = $1, grt_serie = $2, grt_correlativo = $3 WHERE id_guia = $4',
+    ['LISTA_PARA_ENVIAR', serie, correlativo, idGuia]);
+
+  let result;
+  try {
+    result = await mifact.sendGuiaRemision(doc);
+  } catch (err) {
+    await pool.query('UPDATE guia_remision SET grt_estado = $1 WHERE id_guia = $2', ['ERROR_ENVIO', idGuia]);
+    return { ok: false, status: 502, error: 'No se pudo conectar con MiFact para enviar la guia.', detalle: err.message, estado_interno: 'ERROR_ENVIO' };
+  }
+
+  const esDuplicado = /ya existe|ya se encuentra|duplicad/i.test(result.errors || '');
+  // Solo se reintenta la recuperación del PDF cuando el documento está en proceso (101),
+  // no cuando fue rechazado (104) — en ese caso se responde el error de inmediato.
+  const esProcesoReal = result.estado_documento === '101';
+
+  if (esProcesoReal && !esDuplicado) {
+    const reintentos = 3;
+    for (let i = 0; i < reintentos; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      let recur;
+      try {
+        recur = await mifact.getGuiaDocumento(serie, correlativo, 'pdf', doc.fecha || doc.guia_fecha);
+      } catch {
+        recur = null;
+      }
+      if (recur && (recur.pdf_bytes || recur.entrego_pdf === 'true' || recur.estado_documento === '102')) {
+        result = { ...recur, reintentos_realizados: i + 1 };
+        break;
+      }
+      if (i === reintentos - 1) {
+        result = { ...result, reintentos_realizados: reintentos, error_recuperacion_pdf: 'No se pudo recuperar el PDF' };
+      }
+    }
+  }
+
+  if (esDuplicado) {
+    result.mensaje_duplicado = `La guia ya fue enviada con serie ${serie}-${correlativo}. Genere una guia nueva con otro correlativo.`;
+  }
+
+  const estadoInterno = esDuplicado ? 'RECHAZADA' : estadoInternoDeRespuesta(result);
+  const estadoDoc = esDuplicado ? 'error' : estadoParaDocumento(result);
+  const respuesta = JSON.stringify(result);
+
+  await pool.query(
+    `UPDATE guia_remision SET
+       grt_estado = $1, grt_respuesta = $2, numero_guia = $3, grt_correlativo = $4
+     WHERE id_guia = $5`,
+    [estadoInterno, respuesta, correlativo, correlativo, idGuia]
+  );
+
+  const amigable = mensajeErrorEntendible(result, 'GRT');
+  return {
+    ok: true,
+    result: { ...result, estado_interno: estadoInterno, estado_documento_bd: estadoDoc, error_amigable: amigable, correlativo_enviado: `${serie}-${correlativo}` },
+    estado_interno: estadoInterno,
+  };
+}
+
 router.post('/guias/:id/enviar', async (req, res, next) => {
   try {
-    const doc = await getGuiaGrtCompleta(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'Guia no encontrada' });
-    await getEmpresaParaDoc(doc);
-
-    if (!doc.fecha) return res.status(400).json({ error: 'La guia no tiene fecha de emision.' });
-
-    const correlativo = toStr(doc.numero_guia).replace(/[^0-9]/g, '').slice(-8).padStart(8, '0') || '00000001';
-    const codTipGur = toStr(doc.cod_tip_gur) === '' ? '31' : toStr(doc.cod_tip_gur);
-    doc.cod_tip_gur = codTipGur;
-    const serie = toStr(doc.grt_serie) === '' ? (codTipGur === '09' ? 'T001' : 'V001') : toStr(doc.grt_serie);
-    doc.grt_serie = serie;
-    doc.grt_correlativo = correlativo;
-
-    const validacion = validateGuiaBeforeMiFact(doc);
-    if (!validacion.valid) {
-      await pool.query('UPDATE guia_remision SET grt_estado = $1 WHERE id_guia = $2', ['VALIDANDO', req.params.id]);
-      return res.status(422).json({ error: 'La guia no cumple la validacion para MiFact', errores: validacion.errors });
+    const salida = await enviarUnaGuia(req.params.id);
+    if (!salida.ok) {
+      return res.status(salida.status || 500).json({ error: salida.error, detalle: salida.detalle, errores: salida.errores });
     }
+    res.json(salida.result);
+  } catch (err) { next(err); }
+});
 
-    await pool.query('UPDATE guia_remision SET grt_estado = $1, grt_serie = $2, grt_correlativo = $3 WHERE id_guia = $4',
-      ['LISTA_PARA_ENVIAR', serie, correlativo, req.params.id]);
+// Envio masivo: recibe un array de id_guia y envia cada una a MiFact.
+// Responde siempre con un resumen por guia (sin abortar en la primera falla).
+router.post('/guias/masivo/enviar', async (req, res, next) => {
+  try {
+    const { ids } = req.body || {};
+    const lista = Array.isArray(ids) ? ids.map((x) => parseInt(toStr(x), 10)).filter((x) => !Number.isNaN(x)) : [];
+    if (lista.length === 0) return res.status(400).json({ error: 'Debe indicar al menos una guia (ids).' });
+    if (lista.length > 50) return res.status(400).json({ error: 'Maximo 50 guias por envio masivo.' });
 
-    let result;
-    try {
-      result = await mifact.sendGuiaRemision(doc);
-    } catch (err) {
-      await pool.query('UPDATE guia_remision SET grt_estado = $1 WHERE id_guia = $2', ['ERROR_ENVIO', req.params.id]);
-      return res.status(502).json({
-        error: 'No se pudo conectar con MiFact para enviar la guia.',
-        detalle: err.message,
-      });
-    }
-
-    const esDuplicado = /ya existe|ya se encuentra|duplicad/i.test(result.errors || '');
-    // Solo se reintenta la recuperación del PDF cuando el documento está en proceso (101),
-    // no cuando fue rechazado (104) — en ese caso se responde el error de inmediato.
-    const esProcesoReal = result.estado_documento === '101';
-
-    if (esProcesoReal && !esDuplicado) {
-      const reintentos = 3;
-      for (let i = 0; i < reintentos; i++) {
-        await new Promise((r) => setTimeout(r, 4000));
-        let recur;
-        try {
-          recur = await mifact.getGuiaDocumento(serie, correlativo, 'pdf', doc.fecha || doc.guia_fecha);
-        } catch {
-          recur = null;
-        }
-        if (recur && (recur.pdf_bytes || recur.entrego_pdf === 'true' || recur.estado_documento === '102')) {
-          result = { ...recur, reintentos_realizados: i + 1 };
-          break;
-        }
-        if (i === reintentos - 1) {
-          result = { ...result, reintentos_realizados: reintentos, error_recuperacion_pdf: 'No se pudo recuperar el PDF' };
-        }
+    const resultados = [];
+    for (const idGuia of lista) {
+      let r;
+      try {
+        r = await enviarUnaGuia(idGuia);
+      } catch (err) {
+        await pool.query('UPDATE guia_remision SET grt_estado = $1 WHERE id_guia = $2', ['ERROR_ENVIO', idGuia]).catch(() => {});
+        r = { ok: false, error: 'Error interno al enviar esta guia.', detalle: err.message, estado_interno: 'ERROR_ENVIO' };
+      }
+      const fila = await pool.query('SELECT id_guia, numero_guia, grt_estado FROM guia_remision WHERE id_guia = $1', [idGuia]).catch(() => ({ rows: [] }));
+      const g = fila.rows[0] || {};
+      if (r.ok) {
+        resultados.push({
+          id_guia: idGuia,
+          numero_guia: g.numero_guia,
+          ok: true,
+          estado: r.estado_interno,
+          correlativo_enviado: r.result.correlativo_enviado,
+          pdf_bytes: r.result.pdf_bytes || null,
+        });
+      } else {
+        resultados.push({
+          id_guia: idGuia,
+          numero_guia: g.numero_guia,
+          ok: false,
+          estado: r.estado_interno || g.grt_estado,
+          error: r.error,
+          detalle: r.detalle,
+          errores: r.errores || null,
+        });
       }
     }
 
-    if (esDuplicado) {
-      result.mensaje_duplicado = `La guia ya fue enviada con serie ${serie}-${correlativo}. Genere una guia nueva con otro correlativo.`;
-    }
-
-    const estadoInterno = esDuplicado ? 'RECHAZADA' : estadoInternoDeRespuesta(result);
-    const estadoDoc = esDuplicado ? 'error' : estadoParaDocumento(result);
-    const respuesta = JSON.stringify(result);
-
-    await pool.query(
-      `UPDATE guia_remision SET
-         grt_estado = $1, grt_respuesta = $2, numero_guia = $3, grt_correlativo = $4
-       WHERE id_guia = $5`,
-      [estadoInterno, respuesta, correlativo, correlativo, req.params.id]
-    );
-
-    const amigable = mensajeErrorEntendible(result, 'GRT');
-    res.json({ ...result, estado_interno: estadoInterno, estado_documento_bd: estadoDoc, error_amigable: amigable, correlativo_enviado: `${serie}-${correlativo}` });
+    const enviadas = resultados.filter((x) => x.ok).length;
+    res.json({ total: resultados.length, enviadas, fallidas: resultados.length - enviadas, resultados });
   } catch (err) { next(err); }
 });
 
@@ -357,6 +416,86 @@ router.get('/descargar-guia/:id/:tipo', async (req, res, next) => {
     const correlativo = doc.numero_guia.replace(/[^0-9]/g, '').slice(-8).padStart(8, '0');
     const result = await mifact.getGuiaDocumento('V001', correlativo, tipo, doc.guia_fecha || doc.fecha);
     res.json(result);
+  } catch (err) { next(err); }
+});
+
+// Descarga masiva: recibe un array de id_guia y devuelve un ZIP con los PDFs de
+// las guias que ya fueron enviadas y aceptadas por MiFact. Las que no tengan PDF
+// se omiten o se reportan en el ZIP segun corresponda.
+router.post('/masivo/descargar-pdfs', async (req, res, next) => {
+  try {
+    const { ids } = req.body || {};
+    const lista = Array.isArray(ids) ? ids.map((x) => parseInt(toStr(x), 10)).filter((x) => !Number.isNaN(x)) : [];
+    if (lista.length === 0) return res.status(400).json({ error: 'Debe indicar al menos una guia (ids).' });
+    if (lista.length > 100) return res.status(400).json({ error: 'Maximo 100 guias por descarga masiva.' });
+
+    const filas = await pool.query(
+      `SELECT g.*,
+        cp.razon_social AS proveedor_nombre, cd.razon_social AS destinatario_nombre
+       FROM guia_remision g
+       LEFT JOIN cliente cp ON g.id_proveedor = cp.id_cliente
+       LEFT JOIN cliente cd ON g.id_destinatario = cd.id_cliente
+       WHERE g.id_guia = ANY($1::int[])`,
+      [lista]
+    );
+
+    const aceptados = new Set(['ACEPTADO', 'ACEPTADA', 'FINALIZADO']);
+    const buffer = [];
+    const fallidos = [];
+
+    for (const doc of filas.rows) {
+      const estado = toStr(doc.grt_estado).toUpperCase();
+      const correlativo = toStr(doc.numero_guia).replace(/[^0-9]/g, '').slice(-8).padStart(8, '0') || toStr(doc.grt_correlativo);
+      const codTipGur = toStr(doc.cod_tip_gur) === '' ? '31' : toStr(doc.cod_tip_gur);
+      const serie = toStr(doc.grt_serie) === '' ? (codTipGur === '09' ? 'T001' : 'V001') : toStr(doc.grt_serie);
+
+      // Solo se intenta descargar guias que ya fueron aceptadas (o que conservan
+      // un PDF almacenado de un envio previo exitoso).
+      const esAceptada = aceptados.has(estado);
+
+      let pdf = null;
+      if (doc.grt_respuesta) {
+        try {
+          const parsed = typeof doc.grt_respuesta === 'string' ? JSON.parse(doc.grt_respuesta) : doc.grt_respuesta;
+          if (parsed && parsed.pdf_bytes) pdf = parsed.pdf_bytes;
+        } catch { /* noop */ }
+      }
+
+      if (!pdf && esAceptada) {
+        try {
+          const rec = await mifact.getGuiaDocumento(serie, correlativo, 'pdf', doc.fecha);
+          if (rec && rec.pdf_bytes) pdf = rec.pdf_bytes;
+        } catch { /* noop */ }
+      }
+
+      if (pdf) {
+        buffer.push({ nombre: `${serie}-${correlativo}`, pdf });
+      } else {
+        fallidos.push({ id_guia: doc.id_guia, numero_guia: doc.numero_guia, estado: doc.grt_estado, motivo: 'Sin PDF disponible en MiFact o no aceptado' });
+      }
+    }
+
+    if (buffer.length === 0) {
+      return res.status(404).json({ error: 'Ninguna guia seleccionada tiene PDF disponible.', fallidos });
+    }
+
+    const zipNombre = `guias_pdf_${Date.now()}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipNombre}"`);
+
+    const zip = new ZipArchive({ zlib: { level: 6 } });
+    zip.on('error', (err) => next(err));
+    zip.pipe(res);
+
+    for (const item of buffer) {
+      zip.append(Buffer.from(item.pdf, 'base64'), { name: `${item.nombre}.pdf` });
+    }
+
+    if (fallidos.length > 0) {
+      zip.append(JSON.stringify(fallidos, null, 2), { name: '_sin_pdf.json' });
+    }
+
+    zip.finalize();
   } catch (err) { next(err); }
 });
 

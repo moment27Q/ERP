@@ -112,6 +112,10 @@ export default function Guias() {
   const [respuestaMiFact, setRespuestaMiFact] = useState(null);
   const [respuestaGuardada, setRespuestaGuardada] = useState(null);
   const [filters, setFilters] = useState({ fecha_desde: '', fecha_hasta: '' });
+  const [seleccion, setSeleccion] = useState([]);
+  const [enviandoMasivo, setEnviandoMasivo] = useState(false);
+  const [descargandoPdfs, setDescargandoPdfs] = useState(false);
+  const [resultadoMasivo, setResultadoMasivo] = useState(null);
 
   const loadData = async (params = {}) => {
     setLoading(true);
@@ -350,6 +354,53 @@ export default function Guias() {
     try { await api.deleteGuia(g.id_guia); loadData({ search, ...filters }); } catch (err) { alert(err.message); }
   };
 
+  const toggleSeleccion = (idGuia) => {
+    setSeleccion((s) => (s.includes(idGuia) ? s.filter((x) => x !== idGuia) : [...s, idGuia]));
+  };
+
+  const toggleTodos = (guiasActuales) => {
+    const ids = guiasActuales.map((g) => g.id_guia);
+    setSeleccion((s) => (s.length === ids.length && ids.every((i) => s.includes(i)) ? [] : ids));
+  };
+
+  const handleEnviarMasivo = async () => {
+    if (seleccion.length === 0) { alert('Seleccione al menos una guia.'); return; }
+    if (!window.confirm(`Enviar a MiFact ${seleccion.length} guia(s)?`)) return;
+    setEnviandoMasivo(true);
+    setError('');
+    try {
+      const r = await api.enviarGuiasMasivo(seleccion);
+      setResultadoMasivo(r);
+      setSeleccion([]);
+      loadData({ search, ...filters });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEnviandoMasivo(false);
+    }
+  };
+
+  const handleDescargarPdfs = async () => {
+    if (seleccion.length === 0) { alert('Seleccione al menos una guia.'); return; }
+    setDescargandoPdfs(true);
+    setError('');
+    try {
+      const blob = await api.descargarGuiasPdf(seleccion);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `guias_pdf_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDescargandoPdfs(false);
+    }
+  };
+
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none';
   const labelCls = 'block text-xs font-medium text-gray-600 mb-1';
   const sectionTitle = 'col-span-full text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-1 mt-2';
@@ -358,7 +409,15 @@ export default function Guias() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Guias de Remision Transportista</h1>
-        <button onClick={openNew} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nueva GRT</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={handleEnviarMasivo} disabled={enviandoMasivo || seleccion.length === 0} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium">
+            {enviandoMasivo ? 'Enviando...' : `Enviar a MiFact (${seleccion.length})`}
+          </button>
+          <button onClick={handleDescargarPdfs} disabled={descargandoPdfs || seleccion.length === 0} className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium">
+            {descargandoPdfs ? 'Descargando PDFs...' : `Descargar PDFs (${seleccion.length})`}
+          </button>
+          <button onClick={openNew} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nueva GRT</button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 mb-4 flex-wrap">
@@ -374,6 +433,9 @@ export default function Guias() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
+                <th className="px-4 py-3">
+                  <input type="checkbox" checked={guias.length > 0 && seleccion.length === guias.length && guias.every((g) => seleccion.includes(g.id_guia))} onChange={() => toggleTodos(guias)} className="h-4 w-4" />
+                </th>
                 <th className="text-left px-4 py-3 font-medium whitespace-nowrap">N Guia</th>
                 <th className="text-left px-4 py-3 font-medium whitespace-nowrap">Fecha</th>
                 <th className="text-left px-4 py-3 font-medium whitespace-nowrap">Proveedor</th>
@@ -387,11 +449,14 @@ export default function Guias() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="9" className="text-center py-8 text-gray-400">Cargando...</td></tr>
+                <tr><td colSpan="10" className="text-center py-8 text-gray-400">Cargando...</td></tr>
               ) : guias.length === 0 ? (
-                <tr><td colSpan="9" className="text-center py-8 text-gray-400">Sin guias</td></tr>
+                <tr><td colSpan="10" className="text-center py-8 text-gray-400">Sin guias</td></tr>
               ) : guias.map((g) => (
                 <tr key={g.id_guia} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <input type="checkbox" checked={seleccion.includes(g.id_guia)} onChange={() => toggleSeleccion(g.id_guia)} className="h-4 w-4" />
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs font-bold">{g.numero_guia}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{g.fecha?.split('T')[0]}</td>
                   <td className="px-4 py-3 max-w-[150px] truncate">{g.proveedor_nombre}</td>
@@ -973,6 +1038,66 @@ export default function Guias() {
                 </div>
               ) : (
                 <p className="text-xs text-gray-500">No se obtuvo PDF de SUNAT para este documento.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resultadoMasivo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold">Resultado envio masivo a MiFact</h2>
+              <button onClick={() => setResultadoMasivo(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-5">
+              <div className="flex gap-3 mb-4">
+                <div className="flex-1 border rounded-lg p-4 text-center bg-gray-50">
+                  <p className="text-2xl font-bold text-gray-800">{resultadoMasivo.total}</p>
+                  <p className="text-xs text-gray-500">Total</p>
+                </div>
+                <div className="flex-1 border rounded-lg p-4 text-center bg-green-50">
+                  <p className="text-2xl font-bold text-green-700">{resultadoMasivo.enviadas}</p>
+                  <p className="text-xs text-green-600">Exitosas</p>
+                </div>
+                <div className="flex-1 border rounded-lg p-4 text-center bg-red-50">
+                  <p className="text-2xl font-bold text-red-700">{resultadoMasivo.fallidas}</p>
+                  <p className="text-xs text-red-600">Fallidas</p>
+                </div>
+              </div>
+              {resultadoMasivo.resultados.length > 0 && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Guia</th>
+                      <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Estado</th>
+                      <th className="text-left px-3 py-2 font-medium whitespace-nowrap">Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {resultadoMasivo.resultados.map((r) => (
+                      <tr key={r.id_guia} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-mono text-xs">{r.numero_guia || r.id_guia}</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${r.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {r.ok ? 'OK' : r.estado || 'ERROR'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-600 max-w-[280px] break-words">
+                          {r.ok ? (r.correlativo_enviado || 'Enviado') : (r.error + (r.detalle ? ` — ${r.detalle}` : ''))}
+                          {!r.ok && r.errores && Array.isArray(r.errores) && (
+                            <div className="mt-1">
+                              {r.errores.map((er, i) => (
+                                <div key={i} className="text-red-500">[{er.field || er.campo}] {er.message || er.problema}</div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

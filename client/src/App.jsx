@@ -7,6 +7,7 @@ import Estibadores from './pages/Estibadores';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
 import Guias from './pages/Guias';
+import GuiasRemitente from './pages/GuiasRemitente';
 import DocumentosCobro from './pages/DocumentosCobro';
 import Reportes from './pages/Reportes';
 
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="guias" element={<Guias />} />
+        <Route path="guias-remitente" element={<GuiasRemitente />} />
         <Route path="documentos-cobro" element={<DocumentosCobro />} />
         <Route path="choferes" element={<Choferes />} />
         <Route path="estibadores" element={<Estibadores />} />

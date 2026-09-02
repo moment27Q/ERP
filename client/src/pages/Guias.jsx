@@ -70,8 +70,8 @@ function configInicial() {
   const now = new Date();
   return {
     numero_guia: '', fecha: today, hora: now.toTimeString().slice(0, 5), sector: '',
-    grt_serie: 'T001', fecha_traslado: today,
-    cod_tip_gur: '09', cod_motivo_traslado: '',
+    grt_serie: 'V001', fecha_traslado: today,
+    cod_tip_gur: '31', cod_motivo_traslado: '',
     indicador_m1_l: false, indicador_traslado_total_dam_ds: false, peso_trasladado_parcial_dam_ds: '',
     nro_bultos: '', nro_contenedor: '',
     num_nif_llegada_partida: '', cod_puerto_aeropuerto: '', cod_locacion_puerto_aeropuerto: '', nombre_puerto_aeropuerto: '',
@@ -119,17 +119,21 @@ export default function Guias() {
   const [enviandoMasivo, setEnviandoMasivo] = useState(false);
   const [descargandoPdfs, setDescargandoPdfs] = useState(false);
   const [resultadoMasivo, setResultadoMasivo] = useState(null);
+  const [guiasRemitente, setGuiasRemitente] = useState([]);
+  const [grrSeleccionadas, setGrrSeleccionadas] = useState([]);
 
   const loadData = async (params = {}) => {
     setLoading(true);
     try {
-      const [g, c, ch, e] = await Promise.all([
-        api.getGuias(params), api.getClientes(), api.getChoferes(), api.getEstibadores(),
+      const [g, c, ch, e, grr] = await Promise.all([
+        api.getGuias({ ...params, tipo: '31' }), api.getClientes(), api.getChoferes(), api.getEstibadores(),
+        api.getGuias({ tipo: '09' }),
       ]);
       setGuias(g);
       setClientes(c);
       setChoferes(ch);
       setEstibadores(e);
+      setGuiasRemitente(grr);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
@@ -169,12 +173,70 @@ export default function Guias() {
     }));
   };
 
+  const copiarItemsGrr = (grr) => {
+    const arr = Array.isArray(grr.items) ? grr.items : [];
+    if (arr.length === 0) return [];
+    return arr.map((i) => ({
+      num_linea: i.NUM_LINEA || i.num_linea || '', cod_item: i.COD_ITEM || i.cod_item || '',
+      descripcion: i.DESC_ITEM || i.desc_item || i.descripcion || '', unidad_medida: i.UNIDAD_MEDIDA || i.unidad_medida || 'NIU',
+      cantidad: i.CANT_ITEM || i.cant_item || i.cantidad || '', peso_item: i.PESO_ITEM || i.peso_item || i.peso || '',
+      cod_partida_arancelaria: i.COD_PARTIDA_ARANCELARIA || i.cod_partida_arancelaria || '', cod_producto_sunat: i.COD_PRODUCTO_SUNAT || i.cod_producto_sunat || '',
+      bien_normalizado: i.INDICADOR_BIEN_NORMALIZADO_ITEM || i.bien_normalizado || 0,
+    }));
+  };
+
+  const aplicarGRRs = (ids) => {
+    if (ids.length === 0) { setForm(configInicial()); setError(''); return; }
+    const grrs = guiasRemitente.filter((g) => ids.includes(String(g.id_guia)));
+    const principal = grrs[grrs.length - 1];
+    const items = grrs.flatMap((grr) => copiarItemsGrr(grr));
+    const docs = grrs
+      .filter((grr) => grr.numero_guia)
+      .map((grr) => ({ tipo: '09', numero: `${grr.grt_serie || 'T001'}-${grr.numero_guia}` }));
+    setForm((f) => ({
+      ...f,
+      id_proveedor: principal.id_proveedor || '',
+      tipo_doc_remitente: principal.tipo_doc_remitente || '6',
+      num_doc_remitente: principal.num_doc_remitente || '',
+      razon_social_remitente: principal.razon_social_remitente || '',
+      dir_partida: principal.dir_partida || '',
+      distrito_partida: principal.distrito_partida || '',
+      ubigeo_partida: principal.ubigeo_partida || '',
+      id_destinatario: principal.id_destinatario || '',
+      tipo_doc_destinatario: principal.tipo_doc_destinatario || '6',
+      num_doc_destinatario: principal.num_doc_destinatario || '',
+      razon_social_destinatario: principal.razon_social_destinatario || '',
+      destinatario_mismo_remitente: !!principal.destinatario_mismo_remitente,
+      dir_llegada: principal.dir_llegada || '',
+      distrito_llegada: principal.distrito_llegada || '',
+      ubigeo_llegada: principal.ubigeo_llegada || '',
+      cod_motivo_traslado: principal.cod_motivo_traslado || '',
+      cod_tip_gur: '31',
+      items: items.length ? items : f.items,
+      docs_referenciado: docs.length ? docs : f.docs_referenciado,
+      observaciones: grrs.filter((grr) => grr.observaciones).map((grr) => grr.observaciones).join(' | ') || f.observaciones,
+    }));
+    setError('');
+  };
+
+  const onToggleGuiasRemitente = (id) => {
+    const idStr = String(id);
+    const grr = guiasRemitente.find((g) => String(g.id_guia) === idStr);
+    if (grr && grr.usado && grrSeleccionadas.includes(idStr)) return;
+    setGrrSeleccionadas((prev) => {
+      const nuevo = prev.includes(idStr) ? prev.filter((x) => x !== idStr) : [...prev, idStr];
+      aplicarGRRs(nuevo);
+      return nuevo;
+    });
+  };
+
   const openNew = () => {
     setEditing(null);
     setForm(configInicial());
     setValidation([]);
     setError('');
     setRespuestaGuardada(null);
+    setGrrSeleccionadas([]);
     setShowForm(true);
   };
 
@@ -196,7 +258,7 @@ export default function Guias() {
     setForm({
       numero_guia: g.numero_guia || '', fecha: fmt(g.fecha), hora: g.hora || '',
       sector: g.sector || '', grt_serie: g.grt_serie || (String(g.cod_tip_gur) === '09' ? 'T001' : 'V001'), fecha_traslado: fmt(g.fecha_traslado) || fmt(g.fecha),
-      cod_tip_gur: g.cod_tip_gur || '09', cod_motivo_traslado: g.cod_motivo_traslado || '',
+      cod_tip_gur: g.cod_tip_gur || '31', cod_motivo_traslado: g.cod_motivo_traslado || '',
       indicador_m1_l: !!g.indicador_m1_l, indicador_traslado_total_dam_ds: !!g.indicador_traslado_total_dam_ds, peso_trasladado_parcial_dam_ds: g.peso_trasladado_parcial_dam_ds ?? '',
       nro_bultos: g.nro_bultos || '', nro_contenedor: g.nro_contenedor || '',
       num_nif_llegada_partida: g.num_nif_llegada_partida || '', cod_puerto_aeropuerto: g.cod_puerto_aeropuerto || '', cod_locacion_puerto_aeropuerto: g.cod_locacion_puerto_aeropuerto ?? '', nombre_puerto_aeropuerto: g.nombre_puerto_aeropuerto || '',
@@ -245,6 +307,17 @@ export default function Guias() {
     }
     setRespuestaGuardada(respStored);
     setValidation([]);
+    const docs9 = (Array.isArray(g.docs_referenciado) ? g.docs_referenciado : [])
+      .filter((d) => String(d.COD_TIP_DOC_REF || d.tipo || '') === '09');
+    const idsVinculados = guiasRemitente
+      .filter((grr) => {
+        const serie = grr.grt_serie || 'T001';
+        const ref = `${serie}-${grr.numero_guia}`;
+        return docs9.some((d) => (d.NUM_DOC_REF || d.numero || '') === ref
+          || (d.NUM_DOC_REF || d.numero || '').split('-').pop() === String(grr.numero_guia));
+      })
+      .map((grr) => String(grr.id_guia));
+    setGrrSeleccionadas(idsVinculados);
     setError('');
     setShowForm(true);
   };
@@ -563,6 +636,48 @@ if (numCond) {
                 </div>
               )}
 
+              {/* Vincular Guias de Remision Remitente */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-blue-800">Vincular Guias de Remision Remitente (jala sus datos)</label>
+                  {!editing && grrSeleccionadas.length > 0 && (
+                    <button type="button" onClick={() => { setGrrSeleccionadas([]); setForm(configInicial()); }} className="text-blue-700 hover:text-blue-900 text-xs">Quitar todas ({grrSeleccionadas.length})</button>
+                  )}
+                </div>
+                {guiasRemitente.length === 0 ? (
+                  <p className="text-xs text-blue-600">No hay guias remitentes registradas.</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto border border-blue-100 rounded-lg bg-white">
+                    {guiasRemitente.map((grr) => {
+                      const vinculada = grrSeleccionadas.includes(String(grr.id_guia));
+                      const usada = !!grr.usado;
+                      const bloqueada = usada;
+                      return (
+                        <label key={grr.id_guia} className={`flex items-center gap-2 px-3 py-2 text-sm ${bloqueada ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 cursor-pointer hover:bg-blue-50'} border-b border-gray-100 last:border-b-0`}>
+                          <input
+                            type="checkbox"
+                            checked={vinculada}
+                            disabled={bloqueada}
+                            onChange={() => onToggleGuiasRemitente(grr.id_guia)}
+                            className="h-4 w-4"
+                          />
+                          <span className="font-mono text-xs font-semibold">{grr.grt_serie || 'T001'}-{grr.numero_guia}</span>
+                          <span className="truncate">{grr.proveedor_nombre || ''} → {grr.destinatario_nombre || ''}</span>
+                          {usada && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${vinculada ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {vinculada ? 'Vinculada' : 'Usada'}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {grrSeleccionadas.length > 0 && (
+                  <p className="text-xs text-blue-700 mt-2">Se cargaron remitente, destinatario, partida, llegada e items de las {grrSeleccionadas.length} guia(s) remitente seleccionada(s). Ajusta los campos de transporte antes de guardar.</p>
+                )}
+              </div>
+
               {/* Datos del documento */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
                 <h3 className={sectionTitle}>Datos del Documento</h3>
@@ -590,18 +705,8 @@ if (numCond) {
 
               {/* Tipo de guia / motivo (GRE) */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
-                <h3 className={sectionTitle}>Tipo de Guia de Remision</h3>
-                <div>
-                  <label className={labelCls}>Tipo</label>
-                  <select value={form.cod_tip_gur || '09'} onChange={(e) => {
-                    const v = e.target.value;
-                    const serieDefault = v === '09' ? 'T001' : 'V001';
-                    setForm((f) => ({ ...f, cod_tip_gur: v, grt_serie: (f.grt_serie === 'T001' || f.grt_serie === 'V001') ? serieDefault : f.grt_serie }));
-                  }} className={inputCls}>
-                    {TIPOS_GUIA.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                  </select>
-                </div>
-                {(form.cod_tip_gur || '09') === '09' && (
+                <h3 className={sectionTitle}>Guia de Remision Transportista</h3>
+                {(form.cod_tip_gur || '31') === '09' && (
                   <>
                     <div>
                       <label className={labelCls}>Motivo de Traslado *</label>

@@ -52,7 +52,7 @@ function prepararValor(col, v) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const { search, fecha_desde, fecha_hasta, id_proveedor, id_destinatario } = req.query;
+    const { search, fecha_desde, fecha_hasta, id_proveedor, id_destinatario, tipo } = req.query;
     let query = `
       SELECT g.*,
         c_prov.razon_social AS proveedor_nombre,
@@ -60,7 +60,14 @@ router.get('/', async (req, res, next) => {
         ch.nombre_completo AS chofer_nombre,
         e.nombre_completo AS estibador_nombre,
         u.nombre_completo AS usuario_nombre,
-        EXISTS(SELECT 1 FROM documento_cobro d WHERE d.numero_guia = g.numero_guia) AS tiene_cobro
+        EXISTS(SELECT 1 FROM documento_cobro d WHERE d.numero_guia = g.numero_guia) AS tiene_cobro,
+        (g.cod_tip_gur = '09' AND EXISTS(
+          SELECT 1 FROM guia_remision grt
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(grt.docs_referenciado, '[]'::jsonb)) AS dr
+          WHERE grt.cod_tip_gur = '31'
+            AND COALESCE(dr->>'COD_TIP_DOC_REF', dr->>'tipo') = '09'
+            AND COALESCE(dr->>'NUM_DOC_REF', dr->>'numero') = COALESCE(NULLIF(g.grt_serie, ''), 'T001') || '-' || g.numero_guia
+        )) AS usado
       FROM guia_remision g
       LEFT JOIN cliente c_prov ON g.id_proveedor = c_prov.id_cliente
       LEFT JOIN cliente c_dest ON g.id_destinatario = c_dest.id_cliente
@@ -95,6 +102,11 @@ router.get('/', async (req, res, next) => {
     if (id_destinatario) {
       conditions.push(`g.id_destinatario = $${paramIndex}`);
       params.push(id_destinatario);
+      paramIndex++;
+    }
+    if (tipo) {
+      conditions.push(`COALESCE(g.cod_tip_gur, '') = $${paramIndex}`);
+      params.push(tipo);
       paramIndex++;
     }
 

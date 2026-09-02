@@ -2,7 +2,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/guias', label: 'Guias de Remision' },
+  { to: '/guias', label: 'Guias de Remision Transportista' },
+  { to: '/guias-remitente', label: 'Guias de Remision Remitente' },
   { to: '/documentos-cobro', label: 'Documentos de Cobro' },
   { to: '/choferes', label: 'Choferes' },
   { to: '/estibadores', label: 'Estibadores' },

@@ -65,6 +65,12 @@ const COLUMNAS = [
 
 async function asegurarSchema() {
   console.log('=== Verificando/creando columnas en guia_remision (PostgreSQL) ===');
+  console.log('=== Verificando/creando columna tipo_documento en chofer (PostgreSQL) ===');
+  try {
+    await pool.query(`ALTER TABLE chofer ADD COLUMN IF NOT EXISTS tipo_documento VARCHAR(2) DEFAULT '1'`);
+  } catch (err) {
+    console.log('Error al crear tipo_documento en chofer:', err.message);
+  }
   const faltaron = [];
   for (const [name, type] of COLUMNAS) {
     try {

@@ -185,6 +185,7 @@ async function buildGuiaTransportista(doc) {
     : (sanitize(doc.razon_social_destinatario) || sanitize(doc.destinatario_nombre) || 'DESTINATARIO');
 
   const choferDni = toStr(doc.tipo_doc_conductor ? doc.num_doc_conductor : doc.chofer_dni).replace(/\s/g, '');
+  const tipoDocChofer = toStr(doc.tipo_doc_conductor) || toStr(doc.chofer_tipo_doc) || mapTipoDocumento(choferDni) || '1';
   const placa = (sanitize(doc.placa) || sanitize(doc.placa_vehiculo) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const licencia = sanitize(doc.nro_licencia_conduct) || sanitize(doc.chofer_licencia) || '';
 
@@ -383,7 +384,7 @@ async function buildGuiaTransportista(doc) {
     } else if (modTraslado === '02' && !indicadorM1L) {
       // Transporte privado: conductor y vehículo
       if (choferDni) {
-        payload.COD_TIP_NIF_CONDUCT = toStr(doc.tipo_doc_conductor) || mapTipoDocumento(choferDni) || '1';
+        payload.COD_TIP_NIF_CONDUCT = tipoDocChofer;
         payload.NUM_NIF_CONDUCT = choferDni;
         payload.NOM_RZN_SOC_CONDUCT = sanitize(doc.nombre_conductor) || sanitize(doc.chofer_nombre) || 'CONDUCTOR';
         payload.NRO_LICENCIA_CONDUCT = licencia || '00000000';
@@ -410,7 +411,7 @@ async function buildGuiaTransportista(doc) {
 
     // Conductor principal
     if (choferDni) {
-      payload.COD_TIP_NIF_CONDUCT = toStr(doc.tipo_doc_conductor) || mapTipoDocumento(choferDni) || '1';
+      payload.COD_TIP_NIF_CONDUCT = tipoDocChofer;
       payload.NUM_NIF_CONDUCT = choferDni;
       payload.NOM_RZN_SOC_CONDUCT = sanitize(doc.nombre_conductor) || sanitize(doc.chofer_nombre) || 'CONDUCTOR';
       payload.NRO_LICENCIA_CONDUCT = licencia || '00000000';

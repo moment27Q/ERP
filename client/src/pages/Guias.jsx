@@ -211,6 +211,8 @@ export default function Guias() {
       retorno_envases_vacios: !!g.retorno_envases_vacios, retorno_vehiculo_vacio: !!g.retorno_vehiculo_vacio, transbordo_programado: !!g.transbordo_programado,
       pagador_flete: g.pagador_flete || 'R',
       nro_registro_mtc: g.nro_registro_mtc || '', entidad_emisora_aut_transportista: g.entidad_emisora_aut_transportista || '', nro_autorizacion_especial_emisora: g.nro_autorizacion_especial_emisora || '',
+      placa: g.placa || '', constancia_tuc: g.constancia_tuc || '', entidad_emisora_aut_vehiculo: g.entidad_emisora_aut_vehiculo || '', nro_autorizacion_especial_vehiculo: g.nro_autorizacion_especial_vehiculo || '',
+      tipo_doc_conductor: g.tipo_doc_conductor || '1', num_doc_conductor: g.num_doc_conductor || '', nombre_conductor: g.nombre_conductor || '', nro_licencia_conduct: g.nro_licencia_conduct || '',
       items: Array.isArray(g.items) && g.items.length ? g.items.map((i) => ({
         num_linea: i.NUM_LINEA || i.num_linea || '', cod_item: i.COD_ITEM || i.cod_item || '',
         descripcion: i.DESC_ITEM || i.desc_item || i.descripcion || '', unidad_medida: i.UNIDAD_MEDIDA || i.unidad_medida || 'NIU',
@@ -264,8 +266,15 @@ export default function Guias() {
     if ((form.ubigeo_llegada || '').trim() && !/^\d{6}$/.test((form.ubigeo_llegada || '').trim())) {
       errs.push({ code: 'LOCAL-005', field: 'UBI_LLEGADA', message: 'El ubigeo de llegada debe ser un código INEI de 6 dígitos numéricos (ej. 150101).', received: form.ubigeo_llegada, rule: 'Ubigeo INEI de 6 dígitos (ej. 150101)' });
     }
-    if (numCond && !/^\d{8}$|^\d{11}$/.test(numCond)) {
-      errs.push({ code: 'LOCAL-006', field: 'NUM_NIF_CONDUCT', message: 'El documento del conductor debe ser un DNI de 8 dígitos o un RUC de 11 dígitos (solo números).', received: numCond, rule: 'DNI (8) o RUC (11), solo números' });
+if (numCond) {
+      const docOk = form.tipo_doc_conductor === '4'
+        ? /^\d{7,9}$/.test(numCond)
+        : form.tipo_doc_conductor === '6'
+          ? /^\d{11}$/.test(numCond)
+          : /^\d{8}$/.test(numCond);
+      if (!docOk) {
+        errs.push({ code: 'LOCAL-006', field: 'NUM_NIF_CONDUCT', message: form.tipo_doc_conductor === '4' ? 'El carnet de extranjeria debe tener entre 7 y 9 digitos (solo numeros).' : 'El documento del conductor debe ser un DNI de 8 digitos o un RUC de 11 digitos (solo numeros).', received: numCond, rule: form.tipo_doc_conductor === '4' ? 'CE de 7-9 digitos' : 'DNI (8) o RUC (11), solo numeros' });
+      }
     }
     if (licencia && !/^[A-Z0-9]{9,10}$/.test(licencia)) {
       errs.push({ code: 'LOCAL-006', field: 'NRO_LICENCIA_CONDUCT', message: 'La licencia de conducir debe tener entre 9 y 10 caracteres alfanuméricos, sin guiones ni espacios (ej. A71619098).', received: licencia, rule: '9-10 caracteres alfanuméricos, sin guiones' });
@@ -817,7 +826,7 @@ export default function Guias() {
                 <div>
                   <label className={labelCls}>Chofer (registrado)</label>
                   <select value={form.id_chofer || ''} onChange={(e) => { setField('id_chofer', e.target.value); const ch = choferes.find((x) => String(x.id_chofer) === e.target.value); if (ch) {
-                    setField('tipo_doc_conductor', ch.dni && ch.dni.length === 8 ? '1' : '6');
+                    setField('tipo_doc_conductor', ch.tipo_documento || (ch.dni.length === 11 ? '6' : ch.dni.length === 9 ? '4' : '1'));
                     setField('num_doc_conductor', ch.dni || '');
                     setField('nombre_conductor', ch.nombre_completo || '');
                     const lic = (ch.licencia || '').trim();
@@ -826,16 +835,16 @@ export default function Guias() {
                     else if (ch.dni && ch.dni.length === 8) licValida = 'A' + ch.dni;
                     else licValida = lic;
                     setField('nro_licencia_conduct', licValida);
-                    setField('placa_vehiculo', ch.placa_vehiculo || '');
                   } }} className={inputCls}>
                     <option value="">Seleccionar chofer...</option>
-                    {choferes.map((c) => <option key={c.id_chofer} value={c.id_chofer}>{c.nombre_completo} - {c.placa_vehiculo}</option>)}
+                    {choferes.map((c) => <option key={c.id_chofer} value={c.id_chofer}>{c.nombre_completo}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className={labelCls}>Tipo Doc Conductor</label>
                   <select value={form.tipo_doc_conductor || '1'} onChange={(e) => setField('tipo_doc_conductor', e.target.value)} className={inputCls}>
                     <option value="1">DNI</option>
+                    <option value="4">Carnet de Extranjeria</option>
                     <option value="6">RUC</option>
                   </select>
                 </div>
@@ -873,7 +882,7 @@ export default function Guias() {
                 <h3 className={sectionTitle}>Conductores Secundarios</h3>
                 {form.conductores_secundarios.map((c, i) => (
                   <div key={i} className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-2 items-end">
-                    <div><label className={labelCls}>Tipo Doc</label><select value={c.tipo_doc || '1'} onChange={(e) => { const a = [...form.conductores_secundarios]; a[i] = { ...a[i], tipo_doc: e.target.value }; setArr('conductores_secundarios', a); }} className={inputCls}><option value="1">DNI</option><option value="6">RUC</option></select></div>
+                    <div><label className={labelCls}>Tipo Doc</label><select value={c.tipo_doc || '1'} onChange={(e) => { const a = [...form.conductores_secundarios]; a[i] = { ...a[i], tipo_doc: e.target.value }; setArr('conductores_secundarios', a); }} className={inputCls}><option value="1">DNI</option><option value="4">Carnet de Extranjeria</option><option value="6">RUC</option></select></div>
                     <div><label className={labelCls}>Doc</label><input value={c.num_doc || ''} onChange={(e) => { const a = [...form.conductores_secundarios]; a[i] = { ...a[i], num_doc: e.target.value.replace(/\D/g, '') }; setArr('conductores_secundarios', a); }} className={inputCls} /></div>
                     <div><label className={labelCls}>Nombre</label><input value={c.nombre || ''} onChange={(e) => { const a = [...form.conductores_secundarios]; a[i] = { ...a[i], nombre: e.target.value }; setArr('conductores_secundarios', a); }} className={inputCls} /></div>
                     <div><label className={labelCls}>Licencia</label><input value={c.licencia || ''} onChange={(e) => { const a = [...form.conductores_secundarios]; a[i] = { ...a[i], licencia: e.target.value }; setArr('conductores_secundarios', a); }} className={inputCls} /></div>

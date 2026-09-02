@@ -15,7 +15,7 @@ async function getGuiaGrtCompleta(idGuia) {
     `SELECT g.*,
       cp.ruc AS proveedor_ruc, cp.razon_social AS proveedor_nombre, cp.direccion AS proveedor_direccion,
       cd.ruc AS destinatario_ruc, cd.razon_social AS destinatario_nombre, cd.direccion AS destinatario_direccion,
-      ch.nombre_completo AS chofer_nombre, ch.placa_vehiculo, ch.dni AS chofer_dni, ch.licencia AS chofer_licencia,
+      ch.nombre_completo AS chofer_nombre, ch.placa_vehiculo, ch.dni AS chofer_dni, ch.licencia AS chofer_licencia, ch.tipo_documento AS chofer_tipo_doc,
       (SELECT d.factura FROM documento_cobro d WHERE d.numero_guia = g.numero_guia LIMIT 1) AS factura
     FROM guia_remision g
     LEFT JOIN cliente cp ON g.id_proveedor = cp.id_cliente
@@ -43,7 +43,7 @@ async function getDocCompleto(idDocumento) {
       cp.direccion AS proveedor_direccion, cp.fono AS proveedor_email,
       cd.ruc AS destinatario_ruc, cd.razon_social AS destinatario_nombre,
       cd.direccion AS destinatario_direccion,
-      ch.nombre_completo AS chofer_nombre, ch.placa_vehiculo, ch.dni AS chofer_dni, ch.licencia AS chofer_licencia
+      ch.nombre_completo AS chofer_nombre, ch.placa_vehiculo, ch.dni AS chofer_dni, ch.licencia AS chofer_licencia, ch.tipo_documento AS chofer_tipo_doc
     FROM documento_cobro d
     JOIN guia_remision g ON d.numero_guia = g.numero_guia
     LEFT JOIN cliente cp ON g.id_proveedor = cp.id_cliente

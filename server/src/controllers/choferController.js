@@ -30,12 +30,12 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { nombre_completo, dni, licencia, placa_vehiculo, fono } = req.body;
+    const { nombre_completo, dni, licencia, placa_vehiculo, fono, tipo_documento } = req.body;
     if (!nombre_completo || !dni) return res.status(400).json({ error: 'nombre_completo y dni son requeridos' });
     const result = await pool.query(
-      `INSERT INTO chofer (nombre_completo, dni, licencia, placa_vehiculo, fono)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [nombre_completo, dni, licencia, placa_vehiculo, fono]
+      `INSERT INTO chofer (nombre_completo, dni, licencia, placa_vehiculo, fono, tipo_documento)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [nombre_completo, dni, licencia, placa_vehiculo, fono, tipo_documento || '1']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { next(err); }
@@ -43,11 +43,11 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { nombre_completo, dni, licencia, placa_vehiculo, fono } = req.body;
+    const { nombre_completo, dni, licencia, placa_vehiculo, fono, tipo_documento } = req.body;
     const result = await pool.query(
-      `UPDATE chofer SET nombre_completo = $1, dni = $2, licencia = $3, placa_vehiculo = $4, fono = $5
-       WHERE id_chofer = $6 RETURNING *`,
-      [nombre_completo, dni, licencia, placa_vehiculo, fono, req.params.id]
+      `UPDATE chofer SET nombre_completo = $1, dni = $2, licencia = $3, placa_vehiculo = $4, fono = $5, tipo_documento = $6
+       WHERE id_chofer = $7 RETURNING *`,
+      [nombre_completo, dni, licencia, placa_vehiculo, fono, tipo_documento || '1', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     res.json(result.rows[0]);

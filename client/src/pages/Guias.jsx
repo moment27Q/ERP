@@ -36,6 +36,9 @@ const ESTADO_COLOR = {
   ANULADA: 'bg-gray-200 text-gray-600',
 };
 
+const ESTADOS_NO_REENVIABLES = ['ENVIADA', 'EN_PROCESO', 'ACEPTADA', 'ACEPTADA_CON_OBSERVACIONES', 'ANULADA'];
+const puedeEnviarGrt = (estado) => !ESTADOS_NO_REENVIABLES.includes(estado);
+
 const emptyItem = () => ({
   num_linea: '', cod_item: '', descripcion: '', unidad_medida: 'NIU',
   cantidad: '', peso_item: '', cod_partida_arancelaria: '', cod_producto_sunat: '', bien_normalizado: 0,
@@ -485,7 +488,7 @@ if (numCond) {
                   <td className="px-4 py-3 whitespace-nowrap">
                     <button onClick={() => { openEdit(g); }} className="text-primary-600 hover:text-primary-800 text-xs mr-3">Editar</button>
                     <button onClick={() => handleDelete(g)} className="text-red-500 hover:text-red-700 text-xs mr-3">Eliminar</button>
-                    {(g.grt_estado === 'LISTA_PARA_ENVIAR' || g.grt_estado === 'RECHAZADA' || g.grt_estado === 'BORRADOR' || g.grt_estado === 'VALIDANDO') && (
+                    {puedeEnviarGrt(g.grt_estado) && (
                       <button onClick={() => openEdit(g)} className="text-green-600 hover:text-green-800 text-xs">Enviar SUNAT</button>
                     )}
                   </td>
@@ -960,7 +963,7 @@ if (numCond) {
               <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                 <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
                 <button type="button" onClick={handlePreview} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg">Previsualizar JSON</button>
-                {editing && (
+                {editing && puedeEnviarGrt(editing.grt_estado) && (
                   <button type="button" onClick={handleEnviar} disabled={enviando} className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50">
                     {enviando ? 'Enviando a MiFact...' : 'Enviar a MiFact / SUNAT'}
                   </button>

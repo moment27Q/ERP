@@ -98,6 +98,16 @@ async function enviarUnaGuia(idGuia) {
   if (!doc) return { ok: false, status: 404, error: 'Guia no encontrada' };
   await getEmpresaParaDoc(doc);
 
+  const estadosNoReenviables = ['ENVIADA', 'EN_PROCESO', 'ACEPTADA', 'ACEPTADA_CON_OBSERVACIONES', 'ANULADA'];
+  if (estadosNoReenviables.includes(toStr(doc.grt_estado))) {
+    return {
+      ok: false,
+      status: 409,
+      error: `La guia ya fue enviada a SUNAT (estado: ${doc.grt_estado}). No se puede volver a enviar.`,
+      estado_interno: doc.grt_estado,
+    };
+  }
+
   if (!doc.fecha) return { ok: false, status: 400, error: 'La guia no tiene fecha de emision.' };
 
   const correlativo = toStr(doc.numero_guia).replace(/[^0-9]/g, '').slice(-8).padStart(8, '0') || '00000001';

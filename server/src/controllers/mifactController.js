@@ -6,6 +6,7 @@ import * as mifact from '../config/mifactService.js';
 import { validateGuiaBeforeMiFact } from '../config/grtValidator.js';
 import { getEmpresaActiva } from '../config/configEmpresa.js';
 import { estadoInternoDeRespuesta, estadoParaDocumento, mensajeErrorEntendible } from '../config/grtEstados.js';
+import { convertirPdfA5 } from '../utils/pdfA5.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -479,7 +480,9 @@ router.post('/masivo/descargar-pdfs', async (req, res, next) => {
       }
 
       if (pdf) {
-        buffer.push({ nombre: `${serie}-${correlativo}`, pdf });
+        let contenido = pdf;
+        try { contenido = await convertirPdfA5(pdf); } catch { /* si falla la conversion se usa el PDF original */ }
+        buffer.push({ nombre: `${serie}-${correlativo}`, pdf: contenido });
       } else {
         fallidos.push({ id_guia: doc.id_guia, numero_guia: doc.numero_guia, estado: doc.grt_estado, motivo: 'Sin PDF disponible en MiFact o no aceptado' });
       }

@@ -236,20 +236,45 @@ export default function Guias() {
       const numeroGenerado = !form.numero_guia
         ? String(Date.now()).padStart(8, '0').slice(-8)
         : form.numero_guia;
+      const itemsFiltrados = form.items.filter((i) => i.descripcion || i.cod_item || String(i.cantidad || '').trim() || String(i.peso_item || '').trim());
+      const limpia = (v) => (v == null ? '' : String(v).trim());
+      const faltantes = itemsFiltrados.map((i, idx) => {
+        const camposFaltan = [];
+        if (!limpia(i.cod_item)) camposFaltan.push('Codigo de item');
+        if (!limpia(i.descripcion)) camposFaltan.push('Descripcion');
+        if (limpia(i.cantidad) === '' || Number.isNaN(parseFloat(i.cantidad))) camposFaltan.push('Cantidad');
+        if (limpia(i.peso_item) === '' || Number.isNaN(parseFloat(i.peso_item))) camposFaltan.push('Peso');
+        return camposFaltan.length ? { item: i.num_linea || idx + 1, campos: camposFaltan } : null;
+      }).filter(Boolean);
+      if (faltantes.length > 0) {
+        setError('Faltan campos obligatorios en Items / Productos: ' + faltantes.map((f) => `Item ${f.item}: ${f.campos.join(', ')}`).join(' | '));
+        setSaving(false);
+        return;
+      }
+      const conItems = itemsFiltrados.length > 0;
+      const cantItems = itemsFiltrados.reduce((s, i) => s + (parseFloat(i.cantidad) || 0), 0);
+      const pesoItems = itemsFiltrados.reduce((s, i) => s + (parseFloat(i.peso_item) || 0), 0);
       const body = {
         ...form,
         numero_guia: numeroGenerado,
         fecha: form.fecha || new Date().toISOString().split('T')[0],
         hora: form.hora || new Date().toTimeString().slice(0, 5),
-        cantidad: form.cantidad === '' ? null : parseFloat(form.cantidad),
-        peso: form.peso === '' ? null : parseFloat(form.peso),
+        cantidad: form.cantidad === '' || form.cantidad == null
+          ? (conItems ? cantItems : null)
+          : parseFloat(form.cantidad),
+        peso: form.peso === '' || form.peso == null
+          ? (conItems ? pesoItems : null)
+          : parseFloat(form.peso),
+        detalle: !form.detalle && conItems
+          ? itemsFiltrados.map((i) => i.descripcion).filter(Boolean).join(', ')
+          : form.detalle,
         peso_bruto: form.peso_bruto === '' ? null : parseFloat(form.peso_bruto),
         suma: form.suma === '' ? null : parseFloat(form.suma),
         id_proveedor: form.id_proveedor === '' ? null : parseInt(form.id_proveedor),
         id_destinatario: form.id_destinatario === '' ? null : parseInt(form.id_destinatario),
         id_chofer: form.id_chofer === '' ? null : parseInt(form.id_chofer),
         id_estibador: form.id_estibador === '' ? null : parseInt(form.id_estibador),
-        items: form.items.filter((i) => i.descripcion || i.cod_item).map(parseItemBackend),
+        items: itemsFiltrados.map(parseItemBackend),
         vehiculos_secundarios: form.vehiculos_secundarios.filter((v) => v.placa),
         conductores_secundarios: form.conductores_secundarios.filter((c) => c.num_doc),
       };
@@ -443,6 +468,40 @@ export default function Guias() {
                     {choferes.map((c) => <option key={c.id_chofer} value={c.id_chofer}>{c.nombre_completo}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* Items / Productos */}
+              <div className="mb-2">
+                <h3 className={sectionTitle}>Items / Productos</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-2 py-2 text-left font-medium">Item</th>
+                        <th className="px-2 py-2 text-left font-medium">Cod *</th>
+                        <th className="px-2 py-2 text-left font-medium">Descripcion *</th>
+                        <th className="px-2 py-2 text-left font-medium">Unid</th>
+                        <th className="px-2 py-2 text-left font-medium">Cant *</th>
+                        <th className="px-2 py-2 text-left font-medium">Peso *</th>
+                        <th className="px-2 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {form.items.map((it, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-1"><input value={it.num_linea || i + 1} onChange={(e) => setItem(i, 'num_linea', e.target.value)} className="w-12 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                          <td className="px-2 py-1"><input value={it.cod_item || ''} onChange={(e) => setItem(i, 'cod_item', e.target.value)} className="w-20 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                          <td className="px-2 py-1"><input value={it.descripcion || ''} onChange={(e) => setItem(i, 'descripcion', e.target.value)} className="w-64 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                          <td className="px-2 py-1"><select value={it.unidad_medida || 'NIU'} onChange={(e) => setItem(i, 'unidad_medida', e.target.value)} className="border border-gray-300 rounded px-1 py-1 text-sm">{UNIDADES.map(([v, l]) => <option key={v} value={v}>{v}</option>)}{['NIU','BX'].includes(it.unidad_medida) ? null : <option value={it.unidad_medida}>{it.unidad_medida}</option>}</select></td>
+                          <td className="px-2 py-1"><input type="number" step="0.01" value={it.cantidad || ''} onChange={(e) => setItem(i, 'cantidad', e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                          <td className="px-2 py-1"><input type="number" step="0.001" value={it.peso_item || ''} onChange={(e) => setItem(i, 'peso_item', e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                          <td className="px-2 py-1"><button type="button" onClick={() => setArr('items', form.items.filter((_, x) => x !== i))} className="text-red-500 hover:text-red-700 text-sm">x</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" onClick={() => setArr('items', [...form.items, emptyItem()])} className="text-primary-600 hover:text-primary-800 text-sm mt-2">+ Agregar item</button>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t mt-4">

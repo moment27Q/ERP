@@ -175,7 +175,16 @@ export default function Guias() {
 
   const copiarItemsGrr = (grr) => {
     const arr = Array.isArray(grr.items) ? grr.items : [];
-    if (arr.length === 0) return [];
+    if (arr.length === 0) {
+      const tieneDatos = (grr.detalle && String(grr.detalle).trim()) || (grr.cantidad != null && String(grr.cantidad) !== '') || (grr.peso != null && String(grr.peso) !== '');
+      if (!tieneDatos) return [];
+      return [{
+        num_linea: '1', cod_item: '',
+        descripcion: grr.detalle || '', unidad_medida: grr.unidad || 'NIU',
+        cantidad: grr.cantidad != null ? String(grr.cantidad) : '', peso_item: grr.peso != null ? String(grr.peso) : '',
+        cod_partida_arancelaria: '', cod_producto_sunat: '', bien_normalizado: 0,
+      }];
+    }
     return arr.map((i) => ({
       num_linea: i.NUM_LINEA || i.num_linea || '', cod_item: i.COD_ITEM || i.cod_item || '',
       descripcion: i.DESC_ITEM || i.desc_item || i.descripcion || '', unidad_medida: i.UNIDAD_MEDIDA || i.unidad_medida || 'NIU',

@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './controllers/authController.js';
@@ -30,8 +33,18 @@ app.use('/api/guias', guiaRoutes);
 app.use('/api/documentos-cobro', documentoCobroRoutes);
 app.use('/api/mifact', mifactRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 app.use(errorHandler);
 

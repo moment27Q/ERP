@@ -63,6 +63,27 @@ for (const t of tables) {
   if (pk.length) lines.push(`  PRIMARY KEY (${pk.map((r) => r.column_name).join(', ')})`);
 
   out += `  ${lines.join(',\n')}\n);\n`;
+
+  const uniq = (
+    await q(
+      `SELECT tc.constraint_name, kcu.column_name
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+       WHERE tc.table_schema='public' AND tc.table_name=$1 AND tc.constraint_type='UNIQUE'
+       ORDER BY tc.constraint_name, kcu.ordinal_position`,
+      [t]
+    )
+  ).rows;
+  const seen = new Set();
+  const byName = {};
+  for (const u of uniq) {
+    if (seen.has(u.constraint_name)) byName[u.constraint_name].push(u.column_name);
+    else { seen.add(u.constraint_name); byName[u.constraint_name] = [u.column_name]; }
+  }
+  for (const [name, cols] of Object.entries(byName)) {
+    const clean = name.replace(/['"]/g, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    out += `\nCREATE UNIQUE INDEX IF NOT EXISTS ${clean} ON public.${t} (${cols.join(', ')});\n`;
+  }
 }
 
 // Indices (no unicos con PK/unique constraints)
@@ -74,7 +95,7 @@ const idxs = (
 for (const i of idxs) {
   if (i.indexdef.includes(' PRIMARY KEY') || i.indexdef.includes('UNIQUE INDEX')) continue;
   if (i.indexname.startsWith('idx') || i.indexname.includes('_idx')) {
-    out += `\n${i.indexdef};\n`;
+    out += `\n${i.indexdef.replace('CREATE INDEX ', 'CREATE INDEX IF NOT EXISTS ')};\n`;
   }
 }
 

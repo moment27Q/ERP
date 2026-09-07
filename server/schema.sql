@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS public.chofer (
   PRIMARY KEY (id_chofer)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS chofer_dni_key ON public.chofer (dni);
+
 CREATE TABLE IF NOT EXISTS public.cliente (
     id_cliente integer NOT NULL DEFAULT nextval('cliente_id_cliente_seq'::regclass),
   ruc character varying(11) NOT NULL,
@@ -51,6 +53,8 @@ CREATE TABLE IF NOT EXISTS public.cliente (
   fono character varying(20),
   PRIMARY KEY (id_cliente)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS cliente_ruc_key ON public.cliente (ruc);
 
 CREATE TABLE IF NOT EXISTS public.config_empresa (
     id_config integer NOT NULL DEFAULT nextval('config_empresa_id_config_seq'::regclass),
@@ -63,6 +67,8 @@ CREATE TABLE IF NOT EXISTS public.config_empresa (
   cod_tip_nif character varying(2) DEFAULT '6'::character varying,
   PRIMARY KEY (id_config)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS config_empresa_ruc_key ON public.config_empresa (ruc);
 
 CREATE TABLE IF NOT EXISTS public.documento_cobro (
     id_documento integer NOT NULL DEFAULT nextval('documento_cobro_id_documento_seq'::regclass),
@@ -83,12 +89,16 @@ CREATE TABLE IF NOT EXISTS public.documento_cobro (
   PRIMARY KEY (id_documento)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS documento_cobro_numero_guia_key ON public.documento_cobro (numero_guia);
+
 CREATE TABLE IF NOT EXISTS public.estibador (
     id_estibador integer NOT NULL DEFAULT nextval('estibador_id_estibador_seq'::regclass),
   nombre_completo character varying(150) NOT NULL,
   dni character varying(8) NOT NULL,
   PRIMARY KEY (id_estibador)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS estibador_dni_key ON public.estibador (dni);
 
 CREATE TABLE IF NOT EXISTS public.guia_remision (
     id_guia integer NOT NULL DEFAULT nextval('guia_remision_id_guia_seq'::regclass),
@@ -170,11 +180,15 @@ CREATE TABLE IF NOT EXISTS public.guia_remision (
   PRIMARY KEY (id_guia)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS guia_remision_numero_guia_key ON public.guia_remision (numero_guia);
+
 CREATE TABLE IF NOT EXISTS public.rol (
     id_rol integer NOT NULL DEFAULT nextval('rol_id_rol_seq'::regclass),
   nombre_rol character varying(50) NOT NULL,
   PRIMARY KEY (id_rol)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS rol_nombre_rol_key ON public.rol (nombre_rol);
 
 CREATE TABLE IF NOT EXISTS public.usuario (
     id_usuario integer NOT NULL DEFAULT nextval('usuario_id_usuario_seq'::regclass),
@@ -187,15 +201,17 @@ CREATE TABLE IF NOT EXISTS public.usuario (
   PRIMARY KEY (id_usuario)
 );
 
-CREATE INDEX idx_docs_numero_guia ON public.documento_cobro USING btree (numero_guia);
+CREATE UNIQUE INDEX IF NOT EXISTS usuario_usuario_login_key ON public.usuario (usuario_login);
 
-CREATE INDEX idx_guia_chofer ON public.guia_remision USING btree (id_chofer);
+CREATE INDEX IF NOT EXISTS idx_docs_numero_guia ON public.documento_cobro USING btree (numero_guia);
 
-CREATE INDEX idx_guia_destinatario ON public.guia_remision USING btree (id_destinatario);
+CREATE INDEX IF NOT EXISTS idx_guia_chofer ON public.guia_remision USING btree (id_chofer);
 
-CREATE INDEX idx_guia_estibador ON public.guia_remision USING btree (id_estibador);
+CREATE INDEX IF NOT EXISTS idx_guia_destinatario ON public.guia_remision USING btree (id_destinatario);
 
-CREATE INDEX idx_guia_proveedor ON public.guia_remision USING btree (id_proveedor);
+CREATE INDEX IF NOT EXISTS idx_guia_estibador ON public.guia_remision USING btree (id_estibador);
 
-CREATE INDEX idx_guia_usuario ON public.guia_remision USING btree (id_usuario_registro);
+CREATE INDEX IF NOT EXISTS idx_guia_proveedor ON public.guia_remision USING btree (id_proveedor);
+
+CREATE INDEX IF NOT EXISTS idx_guia_usuario ON public.guia_remision USING btree (id_usuario_registro);
 

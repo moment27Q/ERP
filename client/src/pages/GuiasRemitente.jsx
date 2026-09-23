@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { api } from '../api';
+import * as XLSX from 'xlsx';
 
 const UNIDADES = [
   ['PZA', 'Pieza'], ['KG', 'Kilogramo'], ['TN', 'Tonelada'], ['M3', 'Metro cubico'],
@@ -53,6 +54,120 @@ const emptyConductor = () => ({
 });
 
 const emptyDocRef = () => ({ tipo: '01', numero: '' });
+
+const FILA_COLUMNAS = [
+  { header: 'NUMERO GUIA *', field: 'numero_guia' },
+  { header: 'FECHA (AAAA-MM-DD) *', field: 'fecha' },
+  { header: 'HORA (HH:MM) *', field: 'hora' },
+  { header: 'FECHA TRASLADO (AAAA-MM-DD)', field: 'fecha_traslado' },
+  { header: 'MOTIVO TRASLADO', field: 'cod_motivo_traslado' },
+  { header: 'TIPO TRANSPORTE (1=publico 2=privado)', field: 'tipo_transporte' },
+  { header: 'PESO BRUTO', field: 'peso_bruto' },
+  { header: 'UNIDAD PESO BRUTO', field: 'unidad_peso_bruto' },
+  { header: 'NRO BULTOS', field: 'nro_bultos' },
+  { header: 'PAGADOR FLETE (R/C/V/V1/V2)', field: 'pagador_flete' },
+  { header: 'SECTOR', field: 'sector' },
+  { header: 'TIPO', field: 'tipo' },
+  { header: 'ORDEN', field: 'orden' },
+  { header: 'SUMA', field: 'suma' },
+  { header: 'OBSERVACIONES', field: 'observaciones' },
+  { header: 'RUC REMITENTE *', field: 'ruc_remitente' },
+  { header: 'RAZON SOCIAL REMITENTE *', field: 'razon_social_remitente' },
+  { header: 'DIR PARTIDA', field: 'dir_partida' },
+  { header: 'DISTRITO PARTIDA', field: 'distrito_partida' },
+  { header: 'UBIGEO PARTIDA', field: 'ubigeo_partida' },
+  { header: 'RUC DESTINATARIO *', field: 'ruc_destinatario' },
+  { header: 'RAZON SOCIAL DESTINATARIO *', field: 'razon_social_destinatario' },
+  { header: 'DIR LLEGADA', field: 'dir_llegada' },
+  { header: 'DISTRITO LLEGADA', field: 'distrito_llegada' },
+  { header: 'UBIGEO LLEGADA', field: 'ubigeo_llegada' },
+  { header: 'RUC TRANSPORTISTA', field: 'ruc_transportista' },
+  { header: 'RAZON SOCIAL TRANSPORTISTA', field: 'razon_social_transportista' },
+  { header: 'DNI CONDUCTOR', field: 'dni_conductor' },
+  { header: 'NOMBRE CONDUCTOR', field: 'nombre_conductor' },
+  { header: 'LICENCIA CONDUCTOR', field: 'nro_licencia_conductor' },
+  { header: 'PLACA', field: 'placa' },
+  { header: 'DNI ESTIBADOR', field: 'dni_estibador' },
+  { header: 'NOMBRE ESTIBADOR', field: 'nombre_estibador' },
+];
+
+const EJEMPLO_IMPORT = {
+  numero_guia: '000100', fecha: '2026-09-23', hora: '09:30', fecha_traslado: '2026-09-23',
+  cod_motivo_traslado: '01', tipo_transporte: '2', peso_bruto: '1500.5',
+  unidad_peso_bruto: 'KGM', nro_bultos: '10', pagador_flete: 'R', sector: 'NORTE',
+  tipo: '', orden: '', suma: '', observaciones: 'Texto opcional',
+  ruc_remitente: '20100100100', razon_social_remitente: 'EMPRESA REMITENTE SAC',
+  dir_partida: 'AV LIMA 123', distrito_partida: 'LIMA', ubigeo_partida: '150101',
+  ruc_destinatario: '20512345678', razon_social_destinatario: 'EMPRESA DESTINATARIA SAC',
+  dir_llegada: 'AV AREQUIPA 456', distrito_llegada: 'MIRAFLORES', ubigeo_llegada: '150122',
+  ruc_transportista: '', razon_social_transportista: '', dni_conductor: '12345678',
+  nombre_conductor: 'JUAN PEREZ', nro_licencia_conductor: 'A123456', placa: 'ABC123',
+  dni_estibador: '87654321', nombre_estibador: 'LUIS GOMEZ',
+};
+
+const ITEM_COLUMNAS = [
+  { header: 'NUMERO GUIA *', field: 'numero_guia' },
+  { header: 'LINEA', field: 'num_linea' },
+  { header: 'CODIGO ITEM *', field: 'cod_item' },
+  { header: 'DESCRIPCION ITEM *', field: 'descripcion' },
+  { header: 'UNIDAD MEDIDA', field: 'unidad_medida' },
+  { header: 'CANTIDAD *', field: 'cantidad' },
+  { header: 'PESO ITEM *', field: 'peso_item' },
+  { header: 'COD PARTIDA ARANCELARIA', field: 'cod_partida_arancelaria' },
+  { header: 'COD PRODUCTO SUNAT', field: 'cod_producto_sunat' },
+  { header: 'BIEN NORMALIZADO (0/1)', field: 'bien_normalizado' },
+];
+
+const EJEMPLO_ITEM = {
+  numero_guia: '000100', num_linea: '1', cod_item: '001', descripcion: 'PRODUCTO DE EJEMPLO',
+  unidad_medida: 'NIU', cantidad: '10', peso_item: '150.5',
+  cod_partida_arancelaria: '', cod_producto_sunat: '', bien_normalizado: '0',
+};
+
+const normalizarHeader = (s) => String(s || '').toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]/g, '');
+
+const convertirValorImport = (v) => {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    if (y === 1899 || y === 1900) {
+      return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+    }
+    return `${y}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  }
+  if (typeof v === 'number') return String(v);
+  return String(v).trim();
+};
+
+const descargarPlantilla = () => {
+  const filaEjemplo = FILA_COLUMNAS.map((c) => EJEMPLO_IMPORT[c.field] || '');
+  const aoa = [FILA_COLUMNAS.map((c) => c.header), filaEjemplo];
+  const wsGuia = XLSX.utils.aoa_to_sheet(aoa);
+  wsGuia['!cols'] = FILA_COLUMNAS.map((c) => ({ wch: Math.max(20, c.header.length + 2) }));
+
+  const filaItemEjemplo = ITEM_COLUMNAS.map((c) => EJEMPLO_ITEM[c.field] || '');
+  const aoaItems = [ITEM_COLUMNAS.map((c) => c.header), filaItemEjemplo];
+  const wsItems = XLSX.utils.aoa_to_sheet(aoaItems);
+  wsItems['!cols'] = ITEM_COLUMNAS.map((c) => ({ wch: Math.max(18, c.header.length + 2) }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsGuia, 'Guias');
+  XLSX.utils.book_append_sheet(wb, wsItems, 'Items');
+  XLSX.writeFile(wb, 'plantilla_guias_remitente.xlsx');
+};
+
+const descargarReporte = (resultados) => {
+  const aoa = [
+    ['FILA', 'NUMERO GUIA', 'ESTADO', 'DETALLE'],
+    ...resultados.map((r) => [r.fila, r.numero_guia || '', r.valido ? 'OK' : 'ERROR', r.valido ? '' : (r.errores || []).join('; ')]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Resultado');
+  XLSX.writeFile(wb, `reporte_importacion_${new Date().toISOString().split('T')[0]}.xlsx`);
+};
 
 function parseItemBackend(i) {
   return {
@@ -109,6 +224,15 @@ export default function Guias() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({ fecha_desde: '', fecha_hasta: '' });
+  const [showImport, setShowImport] = useState(false);
+  const [archivo, setArchivo] = useState(null);
+  const [filas, setFilas] = useState([]);
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importWarn, setImportWarn] = useState('');
 
   const loadData = async (params = {}) => {
     setLoading(true);
@@ -292,6 +416,128 @@ export default function Guias() {
     try { await api.deleteGuia(g.id_guia); loadData({ search, ...filters }); } catch (err) { alert(err.message); }
   };
 
+  const openImport = () => {
+    setShowImport(true);
+    setArchivo(null);
+    setFilas([]);
+    setPreview(null);
+    setImportMsg('');
+    setImportError('');
+    setImportWarn('');
+  };
+
+  const onSeleccionarArchivo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArchivo(file);
+    setPreview(null);
+    setImportMsg('');
+    setImportError('');
+    setImportWarn('');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
+        const nombreHoja = (n) => normalizarHeader(n);
+        const hojaGuia = wb.SheetNames.find((n) => nombreHoja(n) === 'guias') || wb.SheetNames[0];
+        const hojaItems = wb.SheetNames.find((n) => nombreHoja(n) === 'items')
+          || (wb.SheetNames.length > 1 ? wb.SheetNames[1] : null);
+
+        const wsGuia = wb.Sheets[hojaGuia];
+        if (!wsGuia) { setImportError('El archivo no contiene hojas de calculo'); return; }
+
+        const guiaRows = XLSX.utils.sheet_to_json(wsGuia, { defval: '' });
+        if (guiaRows.length === 0) { setImportError('La hoja Guias no tiene filas de datos'); return; }
+
+        const guiaNormMap = new Map(FILA_COLUMNAS.map((c) => [normalizarHeader(c.header), c.field]));
+        const guias = guiaRows.map((r) => {
+          const fila = {};
+          for (const [header, valor] of Object.entries(r)) {
+            const field = guiaNormMap.get(normalizarHeader(header));
+            if (field) fila[field] = convertirValorImport(valor);
+          }
+          return fila;
+        });
+
+        const itemNormMap = new Map(ITEM_COLUMNAS.map((c) => [normalizarHeader(c.header), c.field]));
+        const itemsPorGuia = new Map();
+        let itemsSinGuia = 0;
+        if (hojaItems) {
+          const wsItems = wb.Sheets[hojaItems];
+          if (wsItems) {
+            const itemRows = XLSX.utils.sheet_to_json(wsItems, { defval: '' });
+            for (const r of itemRows) {
+              const it = {};
+              for (const [header, valor] of Object.entries(r)) {
+                const field = itemNormMap.get(normalizarHeader(header));
+                if (field) it[field] = convertirValorImport(valor);
+              }
+              if (!it.numero_guia) continue;
+              if (!itemsPorGuia.has(it.numero_guia)) itemsPorGuia.set(it.numero_guia, []);
+              itemsPorGuia.get(it.numero_guia).push(it);
+            }
+          }
+        }
+        itemsSinGuia = 0;
+        for (const [num] of itemsPorGuia.entries()) {
+          const existe = guias.some((g) => String(g.numero_guia).trim() === String(num).trim());
+          if (!existe) { itemsSinGuia++; itemsPorGuia.delete(num); }
+        }
+
+        const filas = guias.map((g) => ({
+          ...g,
+          items: itemsPorGuia.get(String(g.numero_guia).trim()) || [],
+        }));
+        setFilas(filas);
+        if (itemsSinGuia > 0) {
+          setImportWarn(`Se ignoraron ${itemsSinGuia} N° de guia de la hoja Items que no figuran en la hoja Guias.`);
+        }
+      } catch (err) {
+        setImportError('No se pudo leer el archivo: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const validarArchivo = async () => {
+    if (filas.length === 0) { setImportError('Primero selecciona un archivo .xlsx'); return; }
+    setPreviewLoading(true);
+    setImportMsg('');
+    setImportError('');
+    setImportWarn('');
+    try {
+      const resultado = await api.importarGuiasPreview(filas);
+      setPreview(resultado);
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const confirmarImport = async () => {
+    if (!preview) return;
+    const validas = preview.resultados.filter((r) => r.valido);
+    if (validas.length === 0) { setImportError('No hay filas validas para importar'); return; }
+    setImporting(true);
+    setImportMsg('');
+    setImportError('');
+    setImportWarn('');
+    try {
+      const resultado = await api.importarGuias(validas.map((r) => r.datos));
+      setImportMsg(`Se importaron ${resultado.insertadas} guias correctamente.`);
+      setFilas([]);
+      setPreview(null);
+      setArchivo(null);
+      loadData({ search, ...filters });
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none';
   const labelCls = 'block text-xs font-medium text-gray-600 mb-1';
   const sectionTitle = 'col-span-full text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-1 mt-2';
@@ -301,6 +547,7 @@ export default function Guias() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Guias de Remision Remitente</h1>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={openImport} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">⬆ Subir masivo</button>
           <button onClick={openNew} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nueva GRR</button>
         </div>
       </div>
@@ -509,6 +756,99 @@ export default function Guias() {
                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold">Subida masiva de Guias de Remision Remitente</h2>
+              <button onClick={() => setShowImport(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-5 space-y-4">
+              {importMsg && <div className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded border border-green-200">{importMsg}</div>}
+              {importWarn && <div className="bg-yellow-50 text-yellow-700 text-sm px-4 py-2 rounded border border-yellow-200">{importWarn}</div>}
+              {importError && <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded border border-red-200">{importError}</div>}
+
+              <div className="flex items-center gap-4 flex-wrap">
+                <button onClick={descargarPlantilla} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Descargar plantilla</button>
+                <label className="cursor-pointer bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                  {archivo ? `Reemplazar archivo: ${archivo.name}` : 'Seleccionar archivo .xlsx'}
+                  <input type="file" accept=".xlsx,.xls" onChange={onSeleccionarArchivo} className="hidden" />
+                </label>
+                {filas.length > 0 && (
+                  <button onClick={validarArchivo} disabled={previewLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                    {previewLoading ? 'Validando...' : `Validar archivo (${filas.length} filas)`}
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500">
+                El archivo tiene dos hojas: <b>Guias</b> (una fila = una guia) e <b>Items</b> (productos vinculados por numero de guia;
+                una guia puede tener varias lineas de items). Los clientes (remitente/destinatario) se buscan por RUC o DNI y se crean
+                automaticamente si no existen; igual para conductor y estibador por DNI. El numero de guia es obligatorio y no puede repetirse.
+              </p>
+
+              {preview && (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-medium text-gray-700">Total: {preview.total}</span>
+                    <span className="text-sm font-medium text-green-700">Validas: {preview.validas}</span>
+                    <span className="text-sm font-medium text-red-600">Invalidas: {preview.invalidas}</span>
+                    {preview.invalidas > 0 && (
+                      <button onClick={() => descargarReporte(preview.resultados)} className="text-blue-600 hover:text-blue-800 text-sm underline">Descargar reporte de errores</button>
+                    )}
+                  </div>
+                  <div className="border border-gray-200 rounded-lg overflow-x-auto max-h-72 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium whitespace-nowrap">FILA</th>
+                          <th className="px-3 py-2 text-left font-medium whitespace-nowrap">NUMERO GUIA</th>
+                          <th className="px-3 py-2 text-left font-medium whitespace-nowrap">ESTADO</th>
+                          <th className="px-3 py-2 text-left font-medium whitespace-nowrap">DETALLE</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {preview.resultados.map((r) => (
+                          <tr key={r.fila} className={r.valido ? 'hover:bg-gray-50' : 'bg-red-50/40 hover:bg-red-50'}>
+                            <td className="px-3 py-2 whitespace-nowrap">{r.fila}</td>
+                            <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.numero_guia || '-'}</td>
+                            <td className="px-3 py-2">
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${r.valido ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {r.valido ? 'Valida' : 'Invalida'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-gray-600">
+                              {r.valido
+                                ? [
+                                    (r.datos.items || []).length > 0 ? `${(r.datos.items || []).length} ítem(s)` : 'Sin ítems',
+                                    r.creara.proveedor && 'se creará remitente',
+                                    r.creara.destinatario && 'se creará destinatario',
+                                    r.creara.chofer && 'se creará conductor',
+                                    r.creara.estibador && 'se creará estibador',
+                                  ].filter(Boolean).join(' · ') || 'Lista para importar'
+                                : (r.errores || []).join('; ')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button type="button" onClick={() => setShowImport(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cerrar</button>
+                {preview && preview.validas > 0 && (
+                  <button onClick={confirmarImport} disabled={importing} className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg disabled:opacity-50">
+                    {importing ? 'Importando...' : `Importar ${preview.validas} guias`}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

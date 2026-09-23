@@ -70,6 +70,8 @@ export const api = {
   updateGuia: (id, body) => request(`/guias/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteGuia: (id) => request(`/guias/${id}`, { method: 'DELETE' }),
   enviarGuiasMasivo: (ids) => request('/guias/masivo/enviar', { method: 'POST', body: JSON.stringify({ ids }) }),
+  importarGuiasPreview: (rows) => request('/guias/importar/preview', { method: 'POST', body: JSON.stringify({ rows }) }),
+  importarGuias: (rows) => request('/guias/importar', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getDocumentosCobro: (search) => request(`/documentos-cobro${search ? `?search=${search}` : ''}`),
   getDocumentoCobro: (id) => request(`/documentos-cobro/${id}`),

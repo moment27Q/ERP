@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './controllers/authController.js';
 import choferRoutes from './controllers/choferController.js';
+import vehiculoRoutes from './controllers/vehiculoController.js';
 import estibadorRoutes from './controllers/estibadorController.js';
 import clienteRoutes from './controllers/clienteController.js';
 import usuarioRoutes from './controllers/usuarioController.js';
@@ -16,6 +17,7 @@ import documentoCobroRoutes from './controllers/documentoCobroController.js';
 import mifactRoutes from './controllers/mifactController.js';
 import configRoutes from './controllers/configController.js';
 import dashboardRoutes from './controllers/dashboardController.js';
+import ubigeoRoutes from './controllers/ubigeoController.js';
 
 dotenv.config();
 const app = express();
@@ -25,6 +27,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/choferes', choferRoutes);
+app.use('/api/vehiculos', vehiculoRoutes);
 app.use('/api/estibadores', estibadorRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/usuarios', usuarioRoutes);
@@ -34,6 +37,7 @@ app.use('/api/documentos-cobro', documentoCobroRoutes);
 app.use('/api/mifact', mifactRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ubigeos', ubigeoRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

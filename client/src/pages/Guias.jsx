@@ -52,6 +52,14 @@ const emptyConductor = () => ({
   tipo_doc: '1', num_doc: '', nombre: '', licencia: '',
 });
 
+const CONDICIONES_TRASLADO = [
+  { key: 'traslado_total_bienes', label: 'Traslado por el total de bienes' },
+  { key: 'transporte_subcontratado', label: 'Transporte subcontratado' },
+  { key: 'retorno_envases_vacios', label: 'Retorno con envases vacios' },
+  { key: 'retorno_vehiculo_vacio', label: 'Retorno de vehiculo vacio' },
+  { key: 'transbordo_programado', label: 'Transbordo programado' },
+];
+
 const emptyDocRef = () => ({ tipo: '01', numero: '' });
 
 function parseItemBackend(i) {
@@ -88,6 +96,7 @@ function configInicial() {
     retorno_envases_vacios: false, retorno_vehiculo_vacio: false, transbordo_programado: false,
     pagador_flete: 'R',
     nro_registro_mtc: '', entidad_emisora_aut_transportista: '', nro_autorizacion_especial_emisora: '',
+    tipo_doc_transp: '6', num_doc_transp: '', razon_social_transp: '',
     items: [emptyItem()],
     vehiculos_secundarios: [],
     conductores_secundarios: [],
@@ -100,6 +109,8 @@ export default function Guias() {
   const [guias, setGuias] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [choferes, setChoferes] = useState([]);
+  const [vehiculos, setVehiculos] = useState([]);
+  const [idVehiculo, setIdVehiculo] = useState('');
   const [estibadores, setEstibadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -114,6 +125,8 @@ export default function Guias() {
   const [enviando, setEnviando] = useState(false);
   const [respuestaMiFact, setRespuestaMiFact] = useState(null);
   const [respuestaGuardada, setRespuestaGuardada] = useState(null);
+  const [ubiOpts, setUbiOpts] = useState({ partida: null, llegada: null });
+  const [ubiMsg, setUbiMsg] = useState({ partida: '', llegada: '' });
   const [filters, setFilters] = useState({ fecha_desde: '', fecha_hasta: '' });
   const [seleccion, setSeleccion] = useState([]);
   const [enviandoMasivo, setEnviandoMasivo] = useState(false);
@@ -125,15 +138,16 @@ export default function Guias() {
   const loadData = async (params = {}) => {
     setLoading(true);
     try {
-      const [g, c, ch, e, grr] = await Promise.all([
+      const [g, c, ch, e, grr, vh] = await Promise.all([
         api.getGuias({ ...params, tipo: '31' }), api.getClientes(), api.getChoferes(), api.getEstibadores(),
-        api.getGuias({ tipo: '09' }),
+        api.getGuias({ tipo: '09' }), api.getVehiculos(),
       ]);
       setGuias(g);
       setClientes(c);
       setChoferes(ch);
       setEstibadores(e);
       setGuiasRemitente(grr);
+      setVehiculos(vh);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
@@ -143,6 +157,14 @@ export default function Guias() {
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
+  const marcarCondicion = (key, marcado) => {
+    setForm((f) => {
+      const next = { ...f };
+      CONDICIONES_TRASLADO.forEach((c) => { next[c.key] = c.key === key ? marcado : false; });
+      return next;
+    });
+  };
+
   const setItem = (idx, key, value) => {
     const items = [...form.items];
     items[idx] = { ...items[idx], [key]: value };
@@ -150,6 +172,50 @@ export default function Guias() {
   };
 
   const setArr = (name, arr) => setForm((f) => ({ ...f, [name]: arr }));
+
+  const seleccionarVehiculo = (e) => {
+    const id = e.target.value;
+    setIdVehiculo(id);
+    if (!id) return;
+    const v = vehiculos.find((x) => String(x.id_vehiculo) === id);
+    if (!v) return;
+    setForm((f) => ({
+      ...f,
+      placa: v.placa || '',
+      constancia_tuc: v.constancia_tuc || '',
+      entidad_emisora_aut_vehiculo: v.entidad_emisora_aut_vehiculo || '',
+      nro_autorizacion_especial_vehiculo: v.nro_autorizacion_especial_vehiculo || '',
+    }));
+  };
+
+  const resolverUbigeo = async (lado) => {
+    const campoDist = lado === 'partida' ? 'distrito_partida' : 'distrito_llegada';
+    const campoUbi = lado === 'partida' ? 'ubigeo_partida' : 'ubigeo_llegada';
+    const nombre = String(form[campoDist] || '').trim();
+    if (!nombre) return;
+    setUbiOpts((o) => ({ ...o, [lado]: null }));
+    setUbiMsg((m) => ({ ...m, [lado]: '' }));
+    try {
+      const r = await api.resolverUbigeo(nombre);
+      if (!r || !r.ubigeo) {
+        setUbiMsg((m) => ({ ...m, [lado]: 'No se encontro el distrito en el catalogo INEI.' }));
+        return;
+      }
+      if (r.coincidencias && r.coincidencias.length > 1) {
+        setUbiOpts((o) => ({ ...o, [lado]: r.coincidencias }));
+        setField(campoUbi, '');
+      } else {
+        setField(campoUbi, r.ubigeo);
+      }
+    } catch (err) {
+      setUbiMsg((m) => ({ ...m, [lado]: err.message || 'No se pudo resolver el ubigeo.' }));
+    }
+  };
+
+  const elegirUbigeo = (lado, ubigeo) => {
+    setField(lado === 'partida' ? 'ubigeo_partida' : 'ubigeo_llegada', ubigeo);
+    setUbiOpts((o) => ({ ...o, [lado]: null }));
+  };
 
   const onSelectProveedor = (val) => {
     const cli = clientes.find((c) => String(c.id_cliente) === val);
@@ -195,7 +261,7 @@ export default function Guias() {
   };
 
   const aplicarGRRs = (ids) => {
-    if (ids.length === 0) { setForm(configInicial()); setError(''); return; }
+    if (ids.length === 0) { setForm(configInicial()); setIdVehiculo(''); setError(''); return; }
     const grrs = guiasRemitente.filter((g) => ids.includes(String(g.id_guia)));
     const principal = grrs[grrs.length - 1];
     const items = grrs.flatMap((grr) => copiarItemsGrr(grr));
@@ -242,6 +308,7 @@ export default function Guias() {
   const openNew = () => {
     setEditing(null);
     setForm(configInicial());
+    setIdVehiculo('');
     setValidation([]);
     setError('');
     setRespuestaGuardada(null);
@@ -285,6 +352,7 @@ export default function Guias() {
       retorno_envases_vacios: !!g.retorno_envases_vacios, retorno_vehiculo_vacio: !!g.retorno_vehiculo_vacio, transbordo_programado: !!g.transbordo_programado,
       pagador_flete: g.pagador_flete || 'R',
       nro_registro_mtc: g.nro_registro_mtc || '', entidad_emisora_aut_transportista: g.entidad_emisora_aut_transportista || '', nro_autorizacion_especial_emisora: g.nro_autorizacion_especial_emisora || '',
+      tipo_doc_transp: g.tipo_doc_transp || '6', num_doc_transp: g.num_doc_transp || '', razon_social_transp: g.razon_social_transp || '',
       placa: g.placa || '', constancia_tuc: g.constancia_tuc || '', entidad_emisora_aut_vehiculo: g.entidad_emisora_aut_vehiculo || '', nro_autorizacion_especial_vehiculo: g.nro_autorizacion_especial_vehiculo || '',
       tipo_doc_conductor: g.tipo_doc_conductor || '1', num_doc_conductor: g.num_doc_conductor || '', nombre_conductor: g.nombre_conductor || '', nro_licencia_conduct: g.nro_licencia_conduct || '',
       items: Array.isArray(g.items) && g.items.length ? g.items.map((i) => ({
@@ -316,6 +384,9 @@ export default function Guias() {
     }
     setRespuestaGuardada(respStored);
     setValidation([]);
+    const placaGuia = String(g.placa || '').trim().toUpperCase();
+    const match = vehiculos.find((v) => placaGuia && String(v.placa || '').trim().toUpperCase() === placaGuia);
+    setIdVehiculo(match ? String(match.id_vehiculo) : '');
     const docs9 = (Array.isArray(g.docs_referenciado) ? g.docs_referenciado : [])
       .filter((d) => String(d.COD_TIP_DOC_REF || d.tipo || '') === '09');
     const idsVinculados = guiasRemitente
@@ -774,11 +845,18 @@ if (numCond) {
                 </div>
                 <div>
                   <label className={labelCls}>Distrito</label>
-                  <input type="text" value={form.distrito_partida || ''} onChange={(e) => setField('distrito_partida', e.target.value)} className={inputCls} />
+                  <input type="text" value={form.distrito_partida || ''} onChange={(e) => setField('distrito_partida', e.target.value)} onBlur={() => resolverUbigeo('partida')} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Ubigeo (6 digitos) *</label>
                   <input type="text" maxLength={6} value={form.ubigeo_partida || ''} onChange={(e) => setField('ubigeo_partida', e.target.value.replace(/\D/g, ''))} className={inputCls} required placeholder="150101" />
+                  {ubiOpts.partida && ubiOpts.partida.length > 0 && (
+                    <select className={`${inputCls} mt-1`} value="" onChange={(e) => e.target.value && elegirUbigeo('partida', e.target.value)}>
+                      <option value="">Elija el distrito ({ubiOpts.partida.length} opciones)...</option>
+                      {ubiOpts.partida.map((o) => <option key={o.ubigeo} value={o.ubigeo}>{o.departamento} - {o.provincia} - {o.distrito} ({o.ubigeo})</option>)}
+                    </select>
+                  )}
+                  {ubiMsg.partida && <p className="text-xs text-red-600 mt-1">{ubiMsg.partida}</p>}
                 </div>
               </div>
 
@@ -855,22 +933,35 @@ if (numCond) {
                 </div>
                 <div>
                   <label className={labelCls}>Distrito</label>
-                  <input type="text" value={form.distrito_llegada || ''} onChange={(e) => setField('distrito_llegada', e.target.value)} className={inputCls} />
+                  <input type="text" value={form.distrito_llegada || ''} onChange={(e) => setField('distrito_llegada', e.target.value)} onBlur={() => resolverUbigeo('llegada')} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Ubigeo (6 digitos) *</label>
                   <input type="text" maxLength={6} value={form.ubigeo_llegada || ''} onChange={(e) => setField('ubigeo_llegada', e.target.value.replace(/\D/g, ''))} className={inputCls} required placeholder="150101" />
+                  {ubiOpts.llegada && ubiOpts.llegada.length > 0 && (
+                    <select className={`${inputCls} mt-1`} value="" onChange={(e) => e.target.value && elegirUbigeo('llegada', e.target.value)}>
+                      <option value="">Elija el distrito ({ubiOpts.llegada.length} opciones)...</option>
+                      {ubiOpts.llegada.map((o) => <option key={o.ubigeo} value={o.ubigeo}>{o.departamento} - {o.provincia} - {o.distrito} ({o.ubigeo})</option>)}
+                    </select>
+                  )}
+                  {ubiMsg.llegada && <p className="text-xs text-red-600 mt-1">{ubiMsg.llegada}</p>}
                 </div>
               </div>
 
               {/* Condiciones + transporte + flete */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
                 <h3 className={sectionTitle}>Condiciones del Traslado</h3>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="h-4 w-4" checked={form.traslado_total_bienes} onChange={(e) => setField('traslado_total_bienes', e.target.checked)} /> Traslado por el total de bienes</label>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="h-4 w-4" checked={form.transporte_subcontratado} onChange={(e) => setField('transporte_subcontratado', e.target.checked)} /> Transporte subcontratado</label>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="h-4 w-4" checked={form.retorno_envases_vacios} onChange={(e) => setField('retorno_envases_vacios', e.target.checked)} /> Retorno con envases vacios</label>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="h-4 w-4" checked={form.retorno_vehiculo_vacio} onChange={(e) => setField('retorno_vehiculo_vacio', e.target.checked)} /> Retorno de vehiculo vacio</label>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="h-4 w-4" checked={form.transbordo_programado} onChange={(e) => setField('transbordo_programado', e.target.checked)} /> Transbordo programado</label>
+                {CONDICIONES_TRASLADO.map(({ key, label }) => (
+                  <label key={key} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={!!form[key]}
+                      onChange={(e) => marcarCondicion(key, e.target.checked)}
+                    />
+                    {label}
+                  </label>
+                ))}
 
                 <h3 className={sectionTitle}>Tipo de Transporte</h3>
                 <div>
@@ -880,8 +971,24 @@ if (numCond) {
                     <option value={2}>Transporte privado (2)</option>
                   </select>
                 </div>
+                <div>
+                  <label className={labelCls}>RUC Transportista</label>
+                  <input type="text" value={form.num_doc_transp || ''} onChange={(e) => setField('num_doc_transp', e.target.value.replace(/\D/g, ''))} className={inputCls} placeholder="RUC de la empresa transportista" />
+                </div>
                 {Number(form.tipo_transporte) === 1 && (
                   <>
+                    <div>
+                      <label className={labelCls}>Tipo Doc Transportista</label>
+                      <select value={form.tipo_doc_transp || '6'} onChange={(e) => setField('tipo_doc_transp', e.target.value)} className={inputCls}>
+                        <option value="6">RUC</option>
+                        <option value="1">DNI</option>
+                        <option value="4">Carnet de Extranjeria</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Razon Social Transportista</label>
+                      <input type="text" value={form.razon_social_transp || ''} onChange={(e) => setField('razon_social_transp', e.target.value)} className={inputCls} />
+                    </div>
                     <div>
                       <label className={labelCls}>Nro Registro MTC</label>
                       <input type="text" value={form.nro_registro_mtc || ''} onChange={(e) => setField('nro_registro_mtc', e.target.value)} className={inputCls} />
@@ -922,8 +1029,25 @@ if (numCond) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
                 <h3 className={sectionTitle}>Vehiculo Principal</h3>
                 <div>
+                  <label className={labelCls}>Vehiculo (registrado)</label>
+                  <select value={idVehiculo} onChange={seleccionarVehiculo} className={inputCls}>
+                    <option value="">Seleccionar vehiculo...</option>
+                    {vehiculos.map((v) => (
+                      <option key={v.id_vehiculo} value={v.id_vehiculo}>
+                        {v.placa}{v.constancia_tuc ? ` - TUC ${v.constancia_tuc}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className={labelCls}>Placa *</label>
-                  <input type="text" value={form.placa || ''} onChange={(e) => setField('placa', e.target.value.toUpperCase())} className={inputCls} />
+                  <input
+                    type="text"
+                    value={form.placa || ''}
+                    onChange={(e) => setField('placa', e.target.value.toUpperCase())}
+                    className={inputCls}
+                    placeholder="Ej: X7I962"
+                  />
                   <input type="hidden" value={form.placa_vehiculo || form.placa || ''} />
                 </div>
                 <div>

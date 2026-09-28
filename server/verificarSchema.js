@@ -42,7 +42,7 @@ const COLUMNAS = [
   ['grt_respuesta', 'JSONB'],
   ['placa', 'VARCHAR(10)'],
   ['constancia_tuc', 'VARCHAR(30)'],
-  ['entidad_emisora_aut_vehiculo', 'VARCHAR(10)'],
+  ['entidad_emisora_aut_vehiculo', 'VARCHAR(50)'],
   ['nro_autorizacion_especial_vehiculo', 'VARCHAR(30)'],
   ['tipo_doc_conductor', 'VARCHAR(2)'],
   ['num_doc_conductor', 'VARCHAR(15)'],
@@ -72,6 +72,24 @@ async function asegurarSchema() {
     console.log('Error al crear tipo_documento en chofer:', err.message);
   }
   const faltaron = [];
+  try {
+    await pool.query(`
+      CREATE SEQUENCE IF NOT EXISTS vehiculo_id_vehiculo_seq
+        INCREMENT BY 1 MINVALUE 1 START WITH 1
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vehiculo (
+        id_vehiculo                         SERIAL PRIMARY KEY,
+        placa                               VARCHAR(10) NOT NULL,
+        constancia_tuc                      VARCHAR(30),
+        entidad_emisora_aut_vehiculo        VARCHAR(50),
+        nro_autorizacion_especial_vehiculo  VARCHAR(30)
+      )
+    `);
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vehiculo_placa_key ON vehiculo (placa)');
+  } catch (err) {
+    console.log('Error al crear tabla vehiculo:', err.message);
+  }
   for (const [name, type] of COLUMNAS) {
     try {
       await pool.query(`ALTER TABLE guia_remision ADD COLUMN IF NOT EXISTS ${name} ${type}`);

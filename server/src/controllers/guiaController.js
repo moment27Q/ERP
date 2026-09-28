@@ -247,6 +247,21 @@ const GRT_COLUMNS = [
   'cod_puerto_aeropuerto', 'cod_locacion_puerto_aeropuerto', 'nombre_puerto_aeropuerto',
 ];
 
+const CONDICIONES_TRASLADO = [
+  'traslado_total_bienes',
+  'transporte_subcontratado',
+  'retorno_envases_vacios',
+  'retorno_vehiculo_vacio',
+  'transbordo_programado',
+];
+
+function normalizarColumnas(columnas, valores) {
+  const marcadas = CONDICIONES_TRASLADO
+    .map((c) => columnas.indexOf(c))
+    .filter((i) => i !== -1 && valores[i] === true);
+  marcadas.slice(1).forEach((i) => { valores[i] = false; });
+}
+
 function prepararValor(col, v) {
   if (v === undefined || v === null) return null;
   if (['fecha', 'hora', 'fecha_traslado', 'fecha_entrega'].includes(col) && String(v).trim() === '') return null;
@@ -396,6 +411,7 @@ router.post('/', async (req, res, next) => {
     for (const col of GRT_COLUMNS) {
       if (req.body[col] !== undefined) setear(col, req.body[col]);
     }
+    normalizarColumnas(columnas, valores);
 
     const result = await pool.query(
       `INSERT INTO guia_remision (${columnas.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
@@ -410,9 +426,10 @@ router.put('/:id', async (req, res, next) => {
     const { numero_guia, fecha, hora, sector, id_proveedor, id_destinatario, cantidad, unidad, detalle, peso, tipo, orden, suma, id_chofer, id_estibador, fecha_entrega } = req.body;
 
     const sets = [];
+    const cols = [];
     const valores = [];
     let idx = 1;
-    const setear = (col, v) => { if (v !== undefined) { sets.push(`${col} = $${idx++}`); valores.push(prepararValor(col, v)); } };
+    const setear = (col, v) => { if (v !== undefined) { sets.push(`${col} = $${idx++}`); cols.push(col); valores.push(prepararValor(col, v)); } };
 
     const base = {
       numero_guia, fecha, hora, sector, id_proveedor, id_destinatario,
@@ -424,6 +441,16 @@ router.put('/:id', async (req, res, next) => {
     }
     for (const col of GRT_COLUMNS) {
       setear(col, req.body[col]);
+    }
+    normalizarColumnas(cols, valores);
+
+    // En un PUT parcial puede haber condiciones en true que no vienen en el body.
+    // Si alguna llega en true, forzamos el resto a false para no dejar dos marcadas.
+    const activating = cols.some((c, i) => CONDICIONES_TRASLADO.includes(c) && valores[i] === true);
+    if (activating) {
+      CONDICIONES_TRASLADO.forEach((c) => {
+        if (!cols.includes(c)) { sets.push(`${c} = $${idx++}`); cols.push(c); valores.push(false); }
+      });
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'Sin campos para actualizar' });
@@ -589,6 +616,7 @@ router.post('/importar', async (req, res, next) => {
         for (const col of GRT_COLUMNS) {
           if (body[col] !== undefined) setear(col, body[col]);
         }
+        normalizarColumnas(columnas, valores);
 
         const r = await client.query(
           `INSERT INTO guia_remision (${columnas.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING id_guia, numero_guia`,

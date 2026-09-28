@@ -15,14 +15,15 @@
 7. [Módulo: Guías de Remisión Remitente (GRR)](#7-módulo-guías-de-remisión-remitente-grr)
 8. [Módulo: Documentos de Cobro](#8-módulo-documentos-de-cobro)
 9. [Módulo: Choferes](#9-módulo-choferes)
-10. [Módulo: Estibadores](#10-módulo-estibadores)
-11. [Módulo: Clientes](#11-módulo-clientes)
-12. [Módulo: Usuarios](#12-módulo-usuarios)
-13. [Módulo: Reportes](#13-módulo-reportes)
-14. [Flujo de Trabajo Típico](#14-flujo-de-trabajo-típico)
-15. [ Estados de las Guías](#15-estados-de-las-guías)
-16. [Integración con SUNAT (MiFact)](#16-integración-con-sunat-mifact)
-17. [Preguntas Frecuentes](#17-preguntas-frecuentes)
+10. [Módulo: Vehículos](#10-módulo-vehículos)
+11. [Módulo: Estibadores](#11-módulo-estibadores)
+12. [Módulo: Clientes](#12-módulo-clientes)
+13. [Módulo: Usuarios](#13-módulo-usuarios)
+14. [Módulo: Reportes](#14-módulo-reportes)
+15. [Flujo de Trabajo Típico](#15-flujo-de-trabajo-típico)
+16. [ Estados de las Guías](#16-estados-de-las-guías)
+17. [Integración con SUNAT (MiFact)](#17-integración-con-sunat-mifact)
+18. [Preguntas Frecuentes](#18-preguntas-frecuentes)
 
 ---
 
@@ -37,7 +38,7 @@ El **ERP Logística** es una aplicación web diseñada para la gestión integral
 - Generar **Documentos de Cobro** y facturar electrónicamente
 - Enviar guías y facturas directamente a **SUNAT**
 - Descargar **PDFs, XMLs y CDRs** de comprobantes aceptados
-- Gestionar **maestros**: clientes, choferes, estibadores y usuarios
+- Gestionar **maestros**: clientes, choferes, vehículos, estibadores y usuarios
 - Generar **reportes** detallados de operaciones
 
 ### Roles de Usuarios
@@ -248,11 +249,15 @@ La pantalla muestra una tabla con las siguientes columnas:
 - **Ubigeo**: Código ubigeo de 6 dígitos
 
 #### Sección 7: Condiciones del Traslado
-- **Traslado total de bienes**: Marcar si es traslado completo
-- **Transporte subcontratado**: Marcar si el transporte está subcontratado
-- **Retorno envases vacíos**: Marcar si aplica
-- **Retorno vehículo vacío**: Marcar si aplica
-- **Transbordo programado**: Marcar si hay transbordo
+- **Traslado total de bienes**: Traslado completo
+- **Transporte subcontratado**: El transporte está subcontratado
+- **Retorno envases vacíos**: aplica
+- **Retorno vehículo vacío**: aplica
+- **Transbordo programado**: hay transbordo
+
+> **Importante**: estas cinco condiciones son **excluyentes**. Al marcar una, el sistema
+> desmarca automáticamente las demás, y solo puede quedar **una** marcada (o ninguna).
+> Esta regla se aplica también en el servidor al guardar o importar, no solo en pantalla.
 
 #### Sección 8: Tipo de Transporte
 - **Público (1)**: Requiere N° Registro MTC, entidad emisora y N° autorización especial
@@ -264,10 +269,16 @@ La pantalla muestra una tabla con las siguientes columnas:
 - **Peso bruto**: Peso total en la unidad seleccionada
 
 #### Sección 10: Vehículo Principal
+- **Vehiculo (registrado)**: Desplegable con los vehículos dados de alta en el
+  [Módulo de Vehículos](#10-módulo-vehículos). Al elegir uno se rellenan la placa y los
+  tres campos de autorización
 - **Placa**: Número de placa del vehículo (6-7 caracteres)
-- **Constancia TUC**: Número de constancia TUC
-- **Entidad emisora**: Entidad que emitió la autorización
-- **N° Autorización**: Número de autorización del vehículo
+- **Constancia Vehicular (TUC)**: Número de constancia vehicular. Ingreso manual
+- **Entidad Emisora Aut. Vehículo**: Entidad que emitió la autorización. Ingreso manual
+- **Nro Autorización Especial Vehículo**: Número de autorización especial del vehículo. Ingreso manual
+
+> Los tres campos de autorización se pueden escribir a mano. El sistema ya no consulta
+> ninguna API de MTC ni de terceros para autocompletarlos.
 
 #### Sección 11: Conductor Principal
 - Seleccionar chofer de la lista desplegable
@@ -541,27 +552,81 @@ Gestiona el registro de choferes disponibles para transportes.
 
 ---
 
-## 10. MÓDULO: ESTIBADORES
+## 10. MÓDULO: VEHÍCULOS
+
+**Ruta**: `/vehiculos`
+
+Gestiona el maestro de vehículos con sus datos de autorización. Al registrar un vehículo
+una sola vez, en la **Sección 10: Vehículo Principal** de la GRT se puede jalar toda la
+información con un solo clic, sin volver a escribirla.
+
+### 10.1 Listado de Vehículos
+
+| Columna | Descripción |
+|---------|-------------|
+| ID | Identificador interno |
+| Placa | Placa del vehículo (única) |
+| Constancia TUC | Número de Constancia Vehicular (TUC) |
+| Entidad Emisora | Entidad que emitió la autorización especial |
+| Nro Aut. Especial | Número de autorización especial del vehículo |
+
+### 10.2 Crear Nuevo Vehículo
+
+1. Hacer clic en **"+ Nuevo"**
+2. Completar:
+   - **Placa** *(obligatorio)*: 5 a 10 caracteres alfanuméricos, Ej: `X7I962`
+   - **Constancia Vehicular (TUC)**: número de constancia
+   - **Entidad Emisora Aut. Vehículo**: ej. "Municipalidad de Lima", "MTC", "SUNAT"
+   - **Nro Autorización Especial Vehículo**: número de autorización
+
+> **Nota**: La placa se guarda siempre en mayúsculas y es única. Si ya existe, el sistema
+> informa "La placa X7I962 ya esta registrada".
+
+### 10.3 Editar / Eliminar Vehículo
+
+- **Editar**: ícono de lápiz, modificar campos y guardar
+- **Eliminar**: ícono de basura y confirmar
+- **Buscar**: por placa, constancia, entidad emisora o número de autorización
+
+> **Nota**: Editar o eliminar un vehículo maestro **no** altera las guías ya creadas,
+> porque cada guía guarda su propia copia de los datos.
+
+### 10.4 Usar el Vehículo en la GRT
+
+En la GRT, sección **Vehículo Principal**:
+
+1. En el desplegable **"Vehiculo (registrado)"** elegir el vehículo
+2. Se rellenan automáticamente: **Placa**, **Constancia Vehicular (TUC)**,
+   **Entidad Emisora Aut. Vehículo** y **Nro Autorización Especial Vehículo**
+3. Si luego se edita un vehículo ya guardado, el desplegable preselecciona el que
+   coincide con la placa de la guía
+
+Los campos quedan habilitados para corrección manual si algún dato está mal.
+Para escribir todo a mano, dejar el desplegable en "Seleccionar vehiculo...".
+
+---
+
+## 11. MÓDULO: ESTIBADORES
 
 **Ruta**: `/estibadores`
 
 Gestiona el registro de estibadores (personal que carga/descarga mercadería).
 
-### 10.1 Listado de Estibadores
+### 11.1 Listado de Estibadores
 
 | Campo | Descripción |
 |-------|-------------|
 | Nombre Completo | Nombre y apellidos del estibador |
 | DNI | Número de DNI |
 
-### 10.2 Crear Nuevo Estibador
+### 11.2 Crear Nuevo Estibador
 
 1. Hacer clic en **"+ Nuevo Estibador"**
 2. Completar los campos:
    - **Nombre Completo**: Nombre y apellidos
    - **DNI**: Número de DNI (8 dígitos)
 
-### 10.3 Editar/Eliminar Estibador
+### 11.3 Editar/Eliminar Estibador
 
 - **Editar**: Hacer clic en el ícono de lápiz
 - **Eliminar**: Hacer clic en el ícono de basura y confirmar
@@ -570,13 +635,13 @@ Gestiona el registro de estibadores (personal que carga/descarga mercadería).
 
 ---
 
-## 11. MÓDULO: CLIENTES
+## 12. MÓDULO: CLIENTES
 
 **Ruta**: `/clientes`
 
 Gestiona el registro de clientes (proveedores y destinatarios).
 
-### 11.1 Listado de Clientes
+### 12.1 Listado de Clientes
 
 | Campo | Descripción |
 |-------|-------------|
@@ -585,7 +650,7 @@ Gestiona el registro de clientes (proveedores y destinatarios).
 | Dirección | Dirección fiscal |
 | Teléfono | Número de contacto |
 
-### 11.2 Crear Nuevo Cliente
+### 12.2 Crear Nuevo Cliente
 
 1. Hacer clic en **"+ Nuevo Cliente"**
 2. Completar los campos:
@@ -594,7 +659,7 @@ Gestiona el registro de clientes (proveedores y destinatarios).
    - **Dirección**: Dirección fiscal
    - **Teléfono**: Número de contacto (opcional)
 
-### 11.3 Editar/Eliminar Cliente
+### 12.3 Editar/Eliminar Cliente
 
 - **Editar**: Hacer clic en el ícono de lápiz
 - **Eliminar**: Hacer clic en el ícono de basura
@@ -613,7 +678,7 @@ Si el cliente tiene guías de remisión asociadas:
 
 ---
 
-## 12. MÓDULO: USUARIOS
+## 13. MÓDULO: USUARIOS
 
 **Ruta**: `/usuarios`
 
@@ -621,7 +686,7 @@ Si el cliente tiene guías de remisión asociadas:
 
 Gestiona los usuarios del sistema.
 
-### 12.1 Listado de Usuarios
+### 13.1 Listado de Usuarios
 
 | Campo | Descripción |
 |-------|-------------|
@@ -631,7 +696,7 @@ Gestiona los usuarios del sistema.
 | Teléfono | Número de contacto |
 | Estado | Activo / Inactivo |
 
-### 12.2 Crear Nuevo Usuario
+### 13.2 Crear Nuevo Usuario
 
 1. Hacer clic en **"+ Nuevo Usuario"**
 2. Completar los campos:
@@ -642,14 +707,14 @@ Gestiona los usuarios del sistema.
    - **Teléfono**: Número de contacto (opcional)
    - **Estado**: Activo o Inactivo
 
-### 12.3 Cambiar Contraseña
+### 13.3 Cambiar Contraseña
 
 1. Seleccionar el usuario
 2. Hacer clic en **"Cambiar Contraseña"**
 3. Ingresar la nueva contraseña (mínimo 4 caracteres)
 4. Confirmar el cambio
 
-### 12.4 Editar/Eliminar Usuario
+### 13.4 Editar/Eliminar Usuario
 
 - **Editar**: Modificar nombre, rol, teléfono o estado
 - **Eliminar**: Eliminar el usuario del sistema
@@ -658,18 +723,18 @@ Gestiona los usuarios del sistema.
 
 ---
 
-## 13. MÓDULO: REPORTES
+## 14. MÓDULO: REPORTES
 
 **Ruta**: `/reportes`
 
 Genera reportes detallados de las operaciones.
 
-### 13.1 Filtros de Reporte
+### 14.1 Filtros de Reporte
 
 - **Fecha Desde**: Fecha de inicio del período
 - **Fecha Hasta**: Fecha de fin del período
 
-### 13.2 Indicadores Clave (KPIs)
+### 14.2 Indicadores Clave (KPIs)
 
 | Indicador | Descripción |
 |-----------|-------------|
@@ -678,7 +743,7 @@ Genera reportes detallados de las operaciones.
 | Total Peso | Peso total transportado |
 | Monto Total (S/) | Monto total facturado |
 
-### 13.3 Resumen por Proveedor
+### 14.3 Resumen por Proveedor
 
 Tabla con:
 - Nombre del proveedor
@@ -687,20 +752,20 @@ Tabla con:
 
 Ordenado por monto de mayor a menor.
 
-### 13.4 Resumen por Chofer
+### 14.4 Resumen por Chofer
 
 Tabla con:
 - Nombre del chofer
 - Cantidad de guías atendidas
 - Monto total asociado
 
-### 13.5 Estado de Entregas
+### 14.5 Estado de Entregas
 
 Gráfica comparativa:
 - **Entregadas**: Guías con fecha de entrega registrada
 - **Pendientes**: Guías sin fecha de entrega
 
-### 13.6 Detalle de Guías
+### 14.6 Detalle de Guías
 
 Tabla completa con:
 - N° Guía, fecha, proveedor, destinatario
@@ -709,7 +774,7 @@ Tabla completa con:
 
 ---
 
-## 14. FLUJO DE TRABAJO TÍPICO
+## 15. FLUJO DE TRABAJO TÍPICO
 
 ### Flujo Completo: De la operación a SUNAT
 
@@ -717,7 +782,8 @@ Tabla completa con:
 ┌─────────────────────────────────────────────────────────────┐
 │  1. REGISTRO MAESTROS                                       │
 │  ├── Registrar Clientes (RUC, Razón Social, Dirección)      │
-│  ├── Registrar Choferes (DNI, Licencia, Placa)              │
+│  ├── Registrar Choferes (DNI, Licencia)                     │
+│  ├── Registrar Vehiculos (Placa, TUC, Entidad, Aut. Esp.)   │
 │  └── Registrar Estibadores (DNI)                            │
 └─────────────────────────────────────────────────────────────┘
                             ↓
@@ -732,7 +798,8 @@ Tabla completa con:
 │  3. CREAR GUÍA TRANSPORTISTA (GRT)                          │
 │  ├── Vincular GRR existente (opcional)                      │
 │  ├── Completar datos de traslado                            │
-│  ├── Asignar chofer y vehículo                              │
+│  ├── Asignar chofer (registrado)                            │
+│  ├── Elegir vehiculo del desplegable (trae placa y TUC)     │
 │  ├── Agregar items/productos                                │
 │  └── Validar información                                    │
 └─────────────────────────────────────────────────────────────┘
@@ -764,7 +831,7 @@ Tabla completa con:
 
 ---
 
-## 15. ESTADOS DE LAS GUÍAS
+## 16. ESTADOS DE LAS GUÍAS
 
 ### Ciclo de Estados GRT
 
@@ -795,9 +862,9 @@ BORRADOR → VALIDANDO → LISTA_PARA_ENVIAR → ENVIADA → ACEPTADA
 
 ---
 
-## 16. INTEGRACIÓN CON SUNAT (MIFACT)
+## 17. INTEGRACIÓN CON SUNAT (MIFACT)
 
-### 16.1 ¿Qué es MiFact?
+### 17.1 ¿Qué es MiFact?
 
 MiFact es un servicio de terceros que facilita la comunicación con SUNAT para:
 - Envío de guías de remisión electrónicas (GRE)
@@ -805,7 +872,7 @@ MiFact es un servicio de terceros que facilita la comunicación con SUNAT para:
 - Consulta de estados
 - Descarga de documentos (PDF, XML, CDR)
 
-### 16.2 Configuración
+### 17.2 Configuración
 
 Las credenciales de MiFact se configuran en el archivo `.env` del servidor:
 
@@ -817,7 +884,7 @@ MIFACT_RUC=20100000000
 
 > **Nota**: El RUC configurado será el emisor de todos los documentos electrónicos.
 
-### 16.3 Estados de SUNAT
+### 17.3 Estados de SUNAT
 
 | Código SUNAT | Estado | Significado |
 |--------------|--------|-------------|
@@ -826,19 +893,19 @@ MIFACT_RUC=20100000000
 | 99 / 104 / 105 | Rechazado | Documento rechazado |
 | 101 | En Proceso | SUNAT está procesando |
 
-### 16.4 Documentos Generados
+### 17.4 Documentos Generados
 
 - **PDF**: Documento visual con código QR de SUNAT
 - **XML**: Documento estructurado para sistemas
 - **CDR**: Constancia de Recepción de SUNAT
 
-### 16.5 Conversión de PDF
+### 17.5 Conversión de PDF
 
 Los PDFs descargados de SUNAT vienen en formato **A4**. El sistema los convierte automáticamente a **A5** para facilitar la impresión.
 
 ---
 
-## 17. PREGUNTAS FRECUENTES
+## 18. PREGUNTAS FRECUENTES
 
 ### General
 

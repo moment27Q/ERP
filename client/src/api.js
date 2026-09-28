@@ -39,6 +39,12 @@ export const api = {
   updateChofer: (id, body) => request(`/choferes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteChofer: (id) => request(`/choferes/${id}`, { method: 'DELETE' }),
 
+  getVehiculos: (search) => request(`/vehiculos${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  getVehiculo: (id) => request(`/vehiculos/${id}`),
+  createVehiculo: (body) => request('/vehiculos', { method: 'POST', body: JSON.stringify(body) }),
+  updateVehiculo: (id, body) => request(`/vehiculos/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteVehiculo: (id) => request(`/vehiculos/${id}`, { method: 'DELETE' }),
+
   getEstibadores: (search) => request(`/estibadores${search ? `?search=${search}` : ''}`),
   getEstibador: (id) => request(`/estibadores/${id}`),
   createEstibador: (body) => request('/estibadores', { method: 'POST', body: JSON.stringify(body) }),
@@ -112,4 +118,6 @@ export const api = {
   updateEmpresa: (body) => request('/config/empresa', { method: 'PUT', body: JSON.stringify(body) }),
 
   getDashboard: () => request('/dashboard'),
+
+  resolverUbigeo: (nombre) => request(`/ubigeos?nombre=${encodeURIComponent(nombre)}`),
 };

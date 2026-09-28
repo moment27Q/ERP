@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Choferes from './pages/Choferes';
+import Vehiculos from './pages/Vehiculos';
 import Estibadores from './pages/Estibadores';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="guias-remitente" element={<GuiasRemitente />} />
         <Route path="documentos-cobro" element={<DocumentosCobro />} />
         <Route path="choferes" element={<Choferes />} />
+        <Route path="vehiculos" element={<Vehiculos />} />
         <Route path="estibadores" element={<Estibadores />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="usuarios" element={<Usuarios />} />

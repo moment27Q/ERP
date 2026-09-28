@@ -32,6 +32,10 @@ CREATE SEQUENCE IF NOT EXISTS public.usuario_id_usuario_seq
   INCREMENT BY 1
   MINVALUE 1
   START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS public.vehiculo_id_vehiculo_seq
+  INCREMENT BY 1
+  MINVALUE 1
+  START WITH 1;
 CREATE TABLE IF NOT EXISTS public.chofer (
     id_chofer integer NOT NULL DEFAULT nextval('chofer_id_chofer_seq'::regclass),
   nombre_completo character varying(150) NOT NULL,
@@ -44,6 +48,17 @@ CREATE TABLE IF NOT EXISTS public.chofer (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS chofer_dni_key ON public.chofer (dni);
+
+CREATE TABLE IF NOT EXISTS public.vehiculo (
+    id_vehiculo integer NOT NULL DEFAULT nextval('vehiculo_id_vehiculo_seq'::regclass),
+  placa character varying(10) NOT NULL,
+  constancia_tuc character varying(30),
+  entidad_emisora_aut_vehiculo character varying(50),
+  nro_autorizacion_especial_vehiculo character varying(30),
+  PRIMARY KEY (id_vehiculo)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS vehiculo_placa_key ON public.vehiculo (placa);
 
 CREATE TABLE IF NOT EXISTS public.cliente (
     id_cliente integer NOT NULL DEFAULT nextval('cliente_id_cliente_seq'::regclass),

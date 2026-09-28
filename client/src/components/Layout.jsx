@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 const navItems = [
   { to: '/guias', label: 'Guias de Remision Transportista' },
   { to: '/guias-remitente', label: 'Guias de Remision Remitente' },
-  { to: '/documentos-cobro', label: 'Documentos de Cobro' },
   { to: '/choferes', label: 'Choferes' },
+  { to: '/vehiculos', label: 'Vehiculos' },
   { to: '/estibadores', label: 'Estibadores' },
   { to: '/clientes', label: 'Clientes' },
   { to: '/usuarios', label: 'Usuarios' },

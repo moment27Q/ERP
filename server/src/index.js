@@ -18,6 +18,7 @@ import mifactRoutes from './controllers/mifactController.js';
 import configRoutes from './controllers/configController.js';
 import dashboardRoutes from './controllers/dashboardController.js';
 import ubigeoRoutes from './controllers/ubigeoController.js';
+import { ensureSchema } from './config/ensureSchema.js';
 
 dotenv.config();
 const app = express();
@@ -53,6 +54,16 @@ if (fs.existsSync(clientDist)) {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Servidor ERP corriendo en puerto ${PORT}`);
-});
+
+// Aplica el esquema (tablas/columnas faltantes) antes de atender requests.
+// Evita que un deploy nuevo quede sirviendo 500 por tablas inexistentes.
+ensureSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Servidor ERP corriendo en puerto ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('[schema] No se pudo preparar la base de datos:', err.message);
+    process.exit(1);
+  });

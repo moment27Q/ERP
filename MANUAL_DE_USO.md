@@ -97,7 +97,32 @@ PORT=3001
 MIFACT_BASE_URL=https://demo.mifact.net.pe
 MIFACT_TOKEN=tu_token_mifact
 MIFACT_RUC=20100000000
+
+# IA (Groq) - explica los errores de SUNAT al enviar una GRT
+GROQ_API_KEY=gsk_tu_clave
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=openai/gpt-oss-120b
 ```
+
+> **La IA es opcional.** Si `GROQ_API_KEY` queda vacía, el sistema sigue funcionando con normalidad
+> y solo se pierde la explicación automática de los errores.
+
+#### Configurar la IA para explicar los rechazos de SUNAT
+
+1. Crear una cuenta en [console.groq.com](https://console.groq.com) y generar una API key.
+2. Copiarla en `server/.env` como `GROQ_API_KEY`.
+3. Verificar qué modelos hay disponibles en su cuenta:
+
+```bash
+curl -s https://api.groq.com/openai/v1/models \
+  -H "Authorization: Bearer gsk_tu_clave"
+```
+
+4. Copiar el `id` de un modelo de texto en `GROQ_MODEL`. Los usados y probados con este
+   sistema son `openai/gpt-oss-120b` y `qwen/qwen3.8-27b`.
+
+> En **Render** hay que agregar `GROQ_API_KEY` y `GROQ_MODEL` en *Environment* del servicio.
+> La clave se usa solo en el servidor: nunca viaja al navegador.
 
 #### Inicializar la Base de Datos
 
@@ -339,7 +364,57 @@ Si hay errores, se mostrarán mensajes descriptivos indicando qué campo necesit
    - **Código QR**: Código QR generado por SUNAT
    - **PDF**: Documento PDF descargable y previsualizable
 
-### 6.7 Envío Masivo
+### 6.7 Explicación automática de errores (IA)
+
+Cuando una guía **no se puede enviar**, el sistema analiza el motivo y muestra arriba del
+formulario un recuadro amarillento con la explicación. No hay que pedirla: aparece sola.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ EXPLICACION IA                              certeza alta     │
+│                                                              │
+│ Número de documento del destinatario no coincide con el DNI │
+│                                                              │
+│ El tipo de documento indicado es 1 (DNI), que debe tener    │
+│ exactamente 8 dígitos, pero se ingresó 2345689782 de 10      │
+│ dígitos, por lo que el validador lo rechaza.                │
+│                                                              │
+│ COMO SOLUCIONARLO                                            │
+│ 1. Verifica si el destinatario tiene DNI; si es así,         │
+│    corrige el número a 8 dígitos                             │
+│ 2. Si tiene RUC, cambia el Tipo de documento a 6             │
+│ 3. Guarda y vuelve a enviar la guía                          │
+│                                                              │
+│ Campo principal: NUM_DOC_DESTINATARIO                        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Qué información usa**
+
+El sistema junta tres fuentes y las envía a la IA:
+
+1. Los errores del validador interno (`GRE-0xx`), con el campo y el valor recibido.
+2. Los errores que SUNAT devolvió en el CDR, con su código oficial y la ruta del XML
+   afectada (por ejemplo `2017` — RUC del emisor no registrado).
+3. Los datos de la guía y el payload que se mandó a MiFact.
+
+**Cómo leer la etiqueta de certeza**
+
+| Etiqueta | Significado |
+|----------|-------------|
+| `certeza alta` | La causa se deduce con claridad del error recibido |
+| `certeza media` | Hay varios errores y la causa probable es una de ellas |
+| `certeza baja` | No se pudo determinar con certeza; conviene revisar la lista de errores |
+| `sin IA` | La IA no respondió (sin clave, sin red o modelo caído). Los errores de SUNAT siguen visibles |
+
+**Notas importantes**
+
+- La IA **solo explica**, no modifica datos ni reenvía la guía.
+- El recuadro aparece sobre el mensaje de error rojo y la lista de errores de validación.
+- Si la IA no está disponible, todo lo demás sigue funcionando igual.
+- Solo aplica a **GRT** (guías de remisión transportista), no a GRR.
+
+### 6.8 Envío Masivo
 
 1. Seleccionar múltiples guías usando los **checkboxes** de la tabla
 2. Hacer clic en **"Enviar a MiFact (N)"** (máximo 50 guías por lote)
@@ -348,7 +423,10 @@ Si hay errores, se mostrarán mensajes descriptivos indicando qué campo necesit
    - Exitosas
    - Fallidas
 
-### 6.8 Descarga Masiva de PDFs
+> El envío masivo **no** genera explicaciones de IA: revise una guía a la vez cuando
+> necesite el detalle del rechazo.
+
+### 6.9 Descarga Masiva de PDFs
 
 1. Seleccionar las guías con PDFs disponibles
 2. Hacer clic en **"Descargar PDFs (N)"** (máximo 100 guías)
@@ -356,7 +434,7 @@ Si hay errores, se mostrarán mensajes descriptivos indicando qué campo necesit
 4. Las guías sin PDF se listarán en un archivo `_sin_pdf.json` dentro del ZIP
 5. Los PDFs se convierten automáticamente de **A4 a A5** para impresión
 
-### 6.9 Eliminar Guía
+### 6.10 Eliminar Guía
 
 1. Hacer clic en el ícono de **eliminar** (basura)
 2. Confirmar la eliminación
@@ -883,6 +961,20 @@ MIFACT_RUC=20100000000
 ```
 
 > **Nota**: El RUC configurado será el emisor de todos los documentos electrónicos.
+
+#### Explicación de errores con IA (Groq)
+
+Además del envío, el sistema puede explicar los rechazos de SUNAT usando IA. Se configura
+por separado con `GROQ_API_KEY` en el mismo archivo `.env`. Detalle completo en
+[sección 6.7](#67-explicación-automática-de-errores-ia).
+
+```env
+GROQ_API_KEY=gsk_tu_clave
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+La IA es **complementaria**: si no está configurada o no responde, el envío de guías
+funciona con normalidad y solo se omite la explicación.
 
 ### 17.3 Estados de SUNAT
 

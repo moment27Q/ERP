@@ -89,6 +89,7 @@ export const api = {
   enviarFactura: (id) => request(`/mifact/enviar-factura/${id}`, { method: 'POST' }),
   enviarGuia: (id) => request(`/mifact/enviar-guia/${id}`, { method: 'POST' }),
   enviarGuiaGrt: (id) => request(`/mifact/guias/${id}/enviar`, { method: 'POST' }),
+  explicarErrorGuiaGrt: (id, errores) => request(`/mifact/guias/${id}/explicar-error`, { method: 'POST', body: JSON.stringify({ errores: errores || [] }) }),
   previewGuiaGrt: (id) => request(`/mifact/guias/${id}/preview`),
   estadoFactura: (id) => request(`/mifact/estado-factura/${id}`),
   estadoGuia: (id) => request(`/mifact/estado-guia/${id}`),

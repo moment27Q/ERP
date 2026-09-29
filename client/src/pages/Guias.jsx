@@ -123,6 +123,8 @@ export default function Guias() {
   const [previewJson, setPreviewJson] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [explicacionIA, setExplicacionIA] = useState(null);
+  const [explicandoIA, setExplicandoIA] = useState(false);
   const [respuestaMiFact, setRespuestaMiFact] = useState(null);
   const [respuestaGuardada, setRespuestaGuardada] = useState(null);
   const [ubiOpts, setUbiOpts] = useState({ partida: null, llegada: null });
@@ -494,23 +496,48 @@ if (numCond) {
     } catch (err) { setError(err.message); }
   };
 
+  // Explica con IA el motivo del rechazo. Se dispara solo, sin boton,
+  // y nunca bloquea el flujo: si falla, el error original sigue visible.
+  const pedirExplicacionIA = async (idGuia, errores) => {
+    setExplicandoIA(true);
+    setExplicacionIA(null);
+    try {
+      const r = await api.explicarErrorGuiaGrt(idGuia, errores);
+      if (r?.explicacion) setExplicacionIA(r.explicacion);
+    } catch {
+      setExplicacionIA(null);
+    } finally {
+      setExplicandoIA(false);
+    }
+  };
+
   const handleEnviar = async () => {
     setError('');
     setValidation([]);
+    setExplicacionIA(null);
     if (!editing) { setError('Guarde primero la guia antes de enviar a MiFact.'); return; }
     setEnviando(true);
     try {
       const r = await api.enviarGuiaGrt(editing.id_guia);
-      if (r.errores && r.errores.length) { setValidation(r.errores); }
-      if (r.error_amigable) setError(`${r.error_amigable.mensaje} (${r.error_amigable.campo || ''})`);
+      const hayErrores = (r.errores && r.errores.length) || r.error_amigable || r.mensaje_duplicado;
+      if (Array.isArray(r.errores) && r.errores.length) { setValidation(r.errores); }
+      if (r.error_amigable) {
+        const msg = r.error_amigable.mensaje || r.error_amigable.problema || 'Error al enviar la guia.';
+        setError(`${msg} (${r.error_amigable.campo || 'Documento'})`);
+      }
       else if (r.mensaje_duplicado) setError(r.mensaje_duplicado);
       else setError('Enviado. Estado SUNAT: ' + (r.estado_documento || r.estado_interno || ''));
       if (r.pdf_bytes || r.cadena_para_codigo_qr) setRespuestaMiFact(r);
+      if (hayErrores) {
+        pedirExplicacionIA(editing.id_guia, Array.isArray(r.errores) ? r.errores : []);
+      }
       loadData({ search, ...filters });
       openEdit({ ...editing, grt_estado: r.estado_interno, grt_respuesta: JSON.stringify(r) });
     } catch (err) {
-      if (err.data?.errores) setValidation(err.data.errores);
+      const errores = err.data?.errores;
+      if (errores) setValidation(errores);
       setError(err.message || 'Error al enviar');
+      if (editing?.id_guia) pedirExplicacionIA(editing.id_guia, errores || []);
     } finally { setEnviando(false); }
   };
 
@@ -660,6 +687,52 @@ if (numCond) {
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
             <form onSubmit={handleSave} className="p-5">
+              {(explicandoIA || explicacionIA) && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  {explicandoIA && (
+                    <div className="flex items-center gap-2 text-sm text-amber-800">
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+                      Analizando el motivo del rechazo con la IA...
+                    </div>
+                  )}
+                  {explicacionIA && (
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-800">Explicacion IA</span>
+                          {explicacionIA.certeza && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              explicacionIA.certeza === 'alta' ? 'bg-green-100 text-green-700'
+                                : explicacionIA.certeza === 'media' ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-gray-200 text-gray-600'}`}>
+                              certeza {explicacionIA.certeza}
+                            </span>
+                          )}
+                          {explicacionIA.generado_por_ia === false && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">sin IA</span>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => setExplicacionIA(null)} className="text-amber-600 hover:text-amber-800 text-lg leading-none">&times;</button>
+                      </div>
+                      {explicacionIA.titulo && <p className="mt-2 text-sm font-semibold text-amber-900">{explicacionIA.titulo}</p>}
+                      {explicacionIA.razon && <p className="mt-1 text-sm text-amber-900">{explicacionIA.razon}</p>}
+                      {explicacionIA.solucion?.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Como solucionarlo</p>
+                          <ol className="mt-1 list-decimal pl-5 text-sm text-amber-900 space-y-1">
+                            {explicacionIA.solucion.map((s, i) => <li key={i}>{s}</li>)}
+                          </ol>
+                        </div>
+                      )}
+                      {explicacionIA.campo_principal && (
+                        <p className="mt-3 text-xs text-amber-800">
+                          Campo principal: <span className="font-mono font-semibold">{explicacionIA.campo_principal}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded border border-red-200 mb-4">{error}</div>}
               {validation.length > 0 && (
                 <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded border border-red-200 mb-4">

@@ -36,19 +36,66 @@ function parseDocumento(documento) {
   return { serie: '', correlativo: '', valido: false };
 }
 
+// SUNAT devuelve los errores reales dentro del CDR (XML en base64).
+// Sin esto solo se conserva el texto plano de MiFact y se pierde el codigo de SUNAT.
+// El CDR puede venir en dos formatos: el de MiFact (etiquetas en espanol, sin namespace)
+// y el UBL estandar de SUNAT (sac:Error / cbc:Observation con namespace). Se soportan ambos.
+export function extraerErroresCdr(cdrBase64) {
+  let texto = String(cdrBase64 || '');
+  if (!texto.includes('<')) {
+    try { texto = Buffer.from(texto, 'base64').toString('utf8'); } catch { return []; }
+  }
+  if (!texto.includes('<')) return [];
+
+  // Busca un hijo por nombre local, ignorando el namespace (cbc:, sac:, ar:, ...).
+  const hijo = (bloque, local) => {
+    const re = new RegExp(`<(?:[\\w.-]+:)?${local}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.-]+:)?${local}>`, 'i');
+    const m = bloque.match(re);
+    if (!m) return '';
+    return m[1].replace(/<[^>]+>/g, '').trim();
+  };
+
+  const salida = [];
+
+  const recorrer = (tag) => {
+    const re = new RegExp(`<(?:[\\w.-]+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.-]+:)?${tag}>`, 'gi');
+    let m = re.exec(texto);
+    while (m) {
+      const b = m[1];
+      const e = {
+        codigo: hijo(b, 'Code') || hijo(b, 'codigo'),
+        numero: hijo(b, 'ResponseCode') || hijo(b, 'numero') || hijo(b, 'ApplicationResponseCode'),
+        descripcion: hijo(b, 'Description') || hijo(b, 'descripcion'),
+        campo: hijo(b, 'ReferenceXPath') || hijo(b, 'campo'),
+      };
+      if (e.codigo || e.descripcion) {
+        salida.push({ ...e, numero: e.numero || String(salida.length + 1) });
+      }
+      m = re.exec(texto);
+    }
+  };
+
+  recorrer('Error');
+  if (salida.length === 0) recorrer('Observation');
+  if (salida.length === 0) recorrer('Fault');
+
+  return salida;
+}
+
 function normalizeResult(raw) {
   const src = (raw && typeof raw === 'object') ? raw : {};
   const keys = [
     'cdr_sunat', 'codigo_hash', 'correlativo_cpe', 'errors', 'estado_documento',
     'pdf_bytes', 'serie_cpe', 'sunat_description', 'sunat_note', 'sunat_responsecode',
     'ticket_sunat', 'tipo_cpe', 'url', 'xml_enviado', 'url_pdf_sunat',
-    'cadena_para_codigo_qr',
+    'cadena_para_codigo_qr', 'entrego_pdf',
   ];
   const out = {};
   for (const k of keys) {
     const v = src[k];
     out[k] = (v === undefined || v === null) ? '' : v;
   }
+  out.sunat_errores = extraerErroresCdr(out.cdr_sunat);
   return out;
 }
 

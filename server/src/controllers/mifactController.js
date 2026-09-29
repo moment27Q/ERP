@@ -6,6 +6,7 @@ import * as mifact from '../config/mifactService.js';
 import { validateGuiaBeforeMiFact } from '../config/grtValidator.js';
 import { getEmpresaActiva } from '../config/configEmpresa.js';
 import { estadoInternoDeRespuesta, estadoParaDocumento, mensajeErrorEntendible } from '../config/grtEstados.js';
+import { explicarErrorGuia, iaDisponible } from '../config/iaService.js';
 import { convertirPdfA5 } from '../utils/pdfA5.js';
 
 const router = Router();
@@ -249,6 +250,78 @@ router.get('/guias/:id/preview', async (req, res, next) => {
     const validacion = validateGuiaBeforeMiFact(doc);
     const json = await mifact.buildGuiaTransportistaJson(doc);
     res.json({ valida: validacion.valid, errores: validacion.errors, json });
+  } catch (err) { next(err); }
+});
+
+// Explica con IA por que una GRT no se pudo enviar.
+// Reune tres fuentes: los errores del validador interno, los errores del CDR de SUNAT
+// guardados en grt_respuesta, y el payload que se envió a MiFact.
+router.post('/guias/:id/explicar-error', async (req, res, next) => {
+  try {
+    const doc = await getGuiaGrtCompleta(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Guia no encontrada' });
+    await getEmpresaParaDoc(doc);
+    doc.cod_tip_gur = toStr(doc.cod_tip_gur) === '' ? '31' : toStr(doc.cod_tip_gur);
+    if (!doc.grt_serie) doc.grt_serie = 'V001';
+
+    const validacion = validateGuiaBeforeMiFact(doc);
+
+    let respuestaGuardada = null;
+    if (doc.grt_respuesta) {
+      try {
+        respuestaGuardada = typeof doc.grt_respuesta === 'string'
+          ? JSON.parse(doc.grt_respuesta)
+          : doc.grt_respuesta;
+      } catch { respuestaGuardada = null; }
+    }
+
+    // Los errores de SUNAT se calculan del CDR. Si la guia ya traia el listado
+    // precalculado (envio hecho con esta version) se usa ese; si no, se extrae del CDR.
+    const erroresSunat = Array.isArray(respuestaGuardada?.sunat_errores) && respuestaGuardada.sunat_errores.length > 0
+      ? respuestaGuardada.sunat_errores
+      : mifact.extraerErroresCdr(respuestaGuardada?.cdr_sunat || '');
+
+    // Si el envio fallo por transporte o duplicado y no hay errores del validador,
+    // la respuesta de MiFact es la unica fuente de informacion disponible.
+    const erroresLocales = validacion.errors.length > 0 ? validacion.errors : (Array.isArray(req.body.errores) ? req.body.errores : []);
+
+    let payload = null;
+    try { payload = await mifact.buildGuiaTransportistaJson(doc); } catch { payload = null; }
+
+    const explicacion = await explicarErrorGuia({
+      erroresLocales,
+      erroresSunat,
+      respuestaMiFact: respuestaGuardada,
+      payload,
+      guia: {
+        numero_guia: doc.numero_guia,
+        fecha: doc.fecha,
+        serie: doc.grt_serie,
+        tipo_transporte: doc.tipo_transporte,
+        nro_registro_mtc: doc.nro_registro_mtc,
+        tipo_doc_remitente: doc.tipo_doc_remitente,
+        num_doc_remitente: doc.num_doc_remitente,
+        razon_social_remitente: doc.razon_social_remitente,
+        tipo_doc_destinatario: doc.tipo_doc_destinatario,
+        num_doc_destinatario: doc.num_doc_destinatario,
+        razon_social_destinatario: doc.razon_social_destinatario,
+        destinatario_mismo_remitente: doc.destinatario_mismo_remitente,
+        ubigeo_partida: doc.ubigeo_partida,
+        ubigeo_llegada: doc.ubigeo_llegada,
+        placa: doc.placa,
+        constancia_tuc: doc.constancia_tuc,
+        peso_bruto: doc.peso_bruto,
+        unidad_peso_bruto: doc.unidad_peso_bruto,
+        items: doc.items,
+      },
+    });
+
+    res.json({
+      explicacion,
+      errores_validador: validacion.errors,
+      errores_sunat: erroresSunat,
+      ia_disponible: iaDisponible(),
+    });
   } catch (err) { next(err); }
 });
 

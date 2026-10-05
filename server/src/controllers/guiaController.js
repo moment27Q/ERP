@@ -287,24 +287,39 @@ function prepararValor(col, v) {
   return v;
 }
 
+// Una GRR queda "usada" cuando una GRT (cod_tip_gur '31') ya la referencia dentro de
+// docs_referenciado. Alimenta tanto la columna `usado` del listado como el bloqueo de
+// edicion, para que el indicador y la regla jamas discrepen.
+const EXPR_USADA_GRR = `(
+          g.cod_tip_gur = '09' AND EXISTS(
+            SELECT 1 FROM guia_remision grt
+            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(grt.docs_referenciado, '[]'::jsonb)) AS dr
+            WHERE grt.cod_tip_gur = '31'
+              AND COALESCE(dr->>'COD_TIP_DOC_REF', dr->>'tipo') = '09'
+              AND COALESCE(dr->>'NUM_DOC_REF', dr->>'numero') = COALESCE(NULLIF(g.grt_serie, ''), 'T001') || '-' || g.numero_guia
+          )
+        )`;
+
+// Una GRR consumida por una GRT queda congelada: sus datos ya alimentan el comprobante
+// de transporte enviado, asi que editarla desincronizaria ambas guias.
+async function grrUsadaPorGrt(idGuia) {
+  const r = await pool.query(`SELECT ${EXPR_USADA_GRR} AS usado FROM guia_remision g WHERE g.id_guia = $1`, [idGuia]);
+  return !!(r.rows[0] && r.rows[0].usado);
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const { search, fecha_desde, fecha_hasta, id_proveedor, id_destinatario, tipo } = req.query;
     let query = `
       SELECT g.*,
         c_prov.razon_social AS proveedor_nombre,
+        c_prov.ruc AS proveedor_ruc,
         c_dest.razon_social AS destinatario_nombre,
         ch.nombre_completo AS chofer_nombre,
         e.nombre_completo AS estibador_nombre,
         u.nombre_completo AS usuario_nombre,
         EXISTS(SELECT 1 FROM documento_cobro d WHERE d.numero_guia = g.numero_guia) AS tiene_cobro,
-        (g.cod_tip_gur = '09' AND EXISTS(
-          SELECT 1 FROM guia_remision grt
-          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(grt.docs_referenciado, '[]'::jsonb)) AS dr
-          WHERE grt.cod_tip_gur = '31'
-            AND COALESCE(dr->>'COD_TIP_DOC_REF', dr->>'tipo') = '09'
-            AND COALESCE(dr->>'NUM_DOC_REF', dr->>'numero') = COALESCE(NULLIF(g.grt_serie, ''), 'T001') || '-' || g.numero_guia
-        )) AS usado
+        ${EXPR_USADA_GRR} AS usado
       FROM guia_remision g
       LEFT JOIN cliente c_prov ON g.id_proveedor = c_prov.id_cliente
       LEFT JOIN cliente c_dest ON g.id_destinatario = c_dest.id_cliente
@@ -423,6 +438,12 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
+    if (await grrUsadaPorGrt(req.params.id)) {
+      return res.status(409).json({
+        error: 'Esta guia de remision remitente ya se uso en una guia de remision transportista y no se puede modificar ni eliminar. Elimine primero la guia de transportista que la referencia.',
+      });
+    }
+
     const { numero_guia, fecha, hora, sector, id_proveedor, id_destinatario, cantidad, unidad, detalle, peso, tipo, orden, suma, id_chofer, id_estibador, fecha_entrega } = req.body;
 
     const sets = [];
@@ -469,6 +490,15 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const guia = await pool.query('SELECT numero_guia FROM guia_remision WHERE id_guia = $1', [req.params.id]);
     if (guia.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
+
+    // Borrar una GRR usada dejaria la referencia de la GRT apuntando a una guia
+    // inexistente, asi que se bloquea igual que la edicion.
+    if (await grrUsadaPorGrt(req.params.id)) {
+      return res.status(409).json({
+        error: 'Esta guia de remision remitente ya se uso en una guia de remision transportista y no se puede eliminar. Elimine primero la guia de transportista que la referencia.',
+      });
+    }
+
     await pool.query('DELETE FROM documento_cobro WHERE numero_guia = $1', [guia.rows[0].numero_guia]);
     await pool.query('DELETE FROM guia_remision WHERE id_guia = $1', [req.params.id]);
     res.json({ message: 'Eliminado correctamente' });

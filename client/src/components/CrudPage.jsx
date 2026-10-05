@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import BulkUploadModal from './BulkUploadModal';
 
-export default function CrudPage({ title, fetchAll, create, update, remove, columns, formFields, searchPlaceholder, canDelete, confirmDelete }) {
+export default function CrudPage({ title, fetchAll, create, update, remove, columns, formFields, searchPlaceholder, canDelete, confirmDelete, importConfig }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -10,6 +11,7 @@ export default function CrudPage({ title, fetchAll, create, update, remove, colu
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const loadData = async (s) => {
     setLoading(true);
@@ -99,9 +101,16 @@ export default function CrudPage({ title, fetchAll, create, update, remove, colu
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
-        <button onClick={openNew} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-          + Nuevo
-        </button>
+        <div className="flex gap-2">
+          {importConfig && (
+            <button onClick={() => setShowImport(true)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              ⬆ Subir Excel
+            </button>
+          )}
+          <button onClick={openNew} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            + Nuevo
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 mb-4">
@@ -199,6 +208,14 @@ export default function CrudPage({ title, fetchAll, create, update, remove, colu
             </form>
           </div>
         </div>
+      )}
+
+      {showImport && importConfig && (
+        <BulkUploadModal
+          config={importConfig}
+          onClose={() => setShowImport(false)}
+          onImported={() => loadData(search)}
+        />
       )}
     </div>
   );

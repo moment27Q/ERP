@@ -291,6 +291,10 @@ export default function Guias() {
   };
 
   const openEdit = (g) => {
+    if (g.usado) {
+      setError('Esta guia de remision remitente ya se uso en una guia de remision transportista y no se puede modificar ni eliminar. Elimine primero la guia de transportista que la referencia.');
+      return;
+    }
     setEditing(g);
     const fmt = (v) => {
       if (!v) return '';
@@ -412,6 +416,10 @@ export default function Guias() {
   };
 
   const handleDelete = async (g) => {
+    if (g.usado) {
+      setError('Esta guia de remision remitente ya se uso en una guia de remision transportista y no se puede eliminar. Elimine primero la guia de transportista que la referencia.');
+      return;
+    }
     if (!window.confirm(`Eliminar guia ${g.numero_guia}? Esto tambien eliminara su documento de cobro.`)) return;
     try { await api.deleteGuia(g.id_guia); loadData({ search, ...filters }); } catch (err) { alert(err.message); }
   };
@@ -552,6 +560,10 @@ export default function Guias() {
         </div>
       </div>
 
+      {error && !showForm && (
+        <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded border border-red-200 mb-4">{error}</div>
+      )}
+
       <form onSubmit={handleSearch} className="flex gap-2 mb-4 flex-wrap">
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por numero, proveedor o destinatario..." className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px] focus:ring-2 focus:ring-primary-500 focus:outline-none" />
         <input type="date" value={filters.fecha_desde} onChange={(e) => setFilters({ ...filters, fecha_desde: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
@@ -569,7 +581,7 @@ export default function Guias() {
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">HORA</th>
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">ASIST</th>
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">SECT</th>
-                <th className="text-center px-3 py-3 font-medium whitespace-nowrap">PROVEEDOR</th>
+                <th className="text-center px-3 py-3 font-medium whitespace-nowrap">PROVEEDOR / RUC</th>
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">DESTINATARIO</th>
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">GUIA</th>
                 <th className="text-center px-3 py-3 font-medium whitespace-nowrap">CANT</th>
@@ -597,7 +609,14 @@ export default function Guias() {
                   <td className="px-3 py-3 whitespace-nowrap text-center">{g.hora || '-'}</td>
                   <td className="px-3 py-3 max-w-[110px] truncate text-center">{g.estibador_nombre || '-'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">{g.sector || '-'}</td>
-                  <td className="px-3 py-3 max-w-[130px] truncate">{g.proveedor_nombre || '-'}</td>
+                  <td className="px-3 py-3">
+                    <div className="max-w-[150px] truncate" title={g.proveedor_nombre || '-'}>{g.proveedor_nombre || '-'}</div>
+                    {(g.num_doc_remitente || g.proveedor_ruc) && (
+                      <div className="font-mono text-[11px] text-gray-500 max-w-[150px] truncate" title={g.num_doc_remitente || g.proveedor_ruc}>
+                        {g.num_doc_remitente || g.proveedor_ruc}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-3 max-w-[130px] truncate">{g.destinatario_nombre || '-'}</td>
                   <td className="px-3 py-3 font-mono text-xs text-center">{g.numero_guia}</td>
                   <td className="px-3 py-3 text-center">{g.cantidad ?? '-'}</td>
@@ -615,13 +634,27 @@ export default function Guias() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${g.usado ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${g.usado ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}
+                      title={g.usado ? 'Ya se uso en una guia de remision transportista: no se puede modificar' : 'Disponible para vincular a una guia de remision transportista'}
+                    >
                       {g.usado ? 'USADA' : 'No'}
                     </span>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
-                    <button onClick={() => { openEdit(g); }} className="text-primary-600 hover:text-primary-800 text-xs mr-3">Editar</button>
-                    <button onClick={() => handleDelete(g)} className="text-red-500 hover:text-red-700 text-xs mr-3">Eliminar</button>
+                    {g.usado ? (
+                      <span
+                        className="text-xs text-gray-400 cursor-not-allowed"
+                        title="Bloqueada: ya se uso en una guia de remision transportista. No se puede editar ni eliminar."
+                      >
+                        Bloqueada
+                      </span>
+                    ) : (
+                      <>
+                        <button onClick={() => openEdit(g)} className="text-primary-600 hover:text-primary-800 text-xs mr-3">Editar</button>
+                        <button onClick={() => handleDelete(g)} className="text-red-500 hover:text-red-700 text-xs mr-3">Eliminar</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}

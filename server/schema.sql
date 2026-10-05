@@ -39,7 +39,7 @@ CREATE SEQUENCE IF NOT EXISTS public.vehiculo_id_vehiculo_seq
 CREATE TABLE IF NOT EXISTS public.chofer (
     id_chofer integer NOT NULL DEFAULT nextval('chofer_id_chofer_seq'::regclass),
   nombre_completo character varying(150) NOT NULL,
-  dni character varying(8) NOT NULL,
+  dni character varying(15) NOT NULL,
   licencia character varying(20),
   placa_vehiculo character varying(10),
   fono character varying(20),
@@ -109,7 +109,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS documento_cobro_numero_guia_key ON public.docu
 CREATE TABLE IF NOT EXISTS public.estibador (
     id_estibador integer NOT NULL DEFAULT nextval('estibador_id_estibador_seq'::regclass),
   nombre_completo character varying(150) NOT NULL,
-  dni character varying(8) NOT NULL,
+  dni character varying(15) NOT NULL,
   PRIMARY KEY (id_estibador)
 );
 

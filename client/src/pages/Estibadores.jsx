@@ -1,5 +1,6 @@
 import CrudPage from '../components/CrudPage';
 import { api } from '../api';
+import { IMPORT_CATALOGOS } from '../config/importCatalogos';
 
 const columns = [
   { key: 'id_estibador', label: 'ID' },
@@ -22,6 +23,7 @@ export default function Estibadores() {
       create={(d) => api.createEstibador(d)}
       update={(id, d) => api.updateEstibador(id, d)}
       remove={(id) => api.deleteEstibador(id)}
+      importConfig={IMPORT_CATALOGOS.estibadores}
       searchPlaceholder="Buscar por nombre o DNI..."
     />
   );

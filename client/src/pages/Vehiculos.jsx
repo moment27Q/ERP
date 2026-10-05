@@ -1,5 +1,6 @@
 import CrudPage from '../components/CrudPage';
 import { api } from '../api';
+import { IMPORT_CATALOGOS } from '../config/importCatalogos';
 
 const columns = [
   { key: 'id_vehiculo', label: 'ID' },
@@ -26,6 +27,7 @@ export default function Vehiculos() {
       create={(d) => api.createVehiculo(d)}
       update={(id, d) => api.updateVehiculo(id, d)}
       remove={(id) => api.deleteVehiculo(id)}
+      importConfig={IMPORT_CATALOGOS.vehiculos}
       searchPlaceholder="Buscar por placa, constancia o entidad..."
     />
   );

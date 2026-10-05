@@ -1,9 +1,90 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import {
+  limpia, leerFilas, prepararLote, cargarExistentes, responderPreview,
+  validarLoteCompleto, importarLote, mensajeResumen,
+} from '../utils/importMasivo.js';
 
 const router = Router();
 router.use(authMiddleware);
+
+const CAMPOS = ['ruc', 'razon_social', 'direccion', 'fono'];
+
+// Este catalogo alimenta a la vez el selector de clientes, el de proveedores (remitente)
+// y el de destinatarios de las guias, por eso la clave natural es el RUC.
+const IMPORT_CLIENTE = {
+  tabla: 'cliente',
+  clave: 'ruc',
+  columnaClave: 'ruc',
+  etiquetaClave: 'RUC',
+  normalizar: (f) => {
+    const fila = f || {};
+    return {
+      ruc: limpia(fila.ruc),
+      razon_social: limpia(fila.razon_social),
+      direccion: limpia(fila.direccion) || null,
+      fono: limpia(fila.fono) || null,
+    };
+  },
+  validar: (n) => {
+    const errores = [];
+    if (!n.ruc) errores.push('El RUC es obligatorio');
+    else if (!/^\d{8}$|^\d{11}$/.test(n.ruc)) errores.push('RUC invalido (debe tener 11 digitos, u 8 si es DNI)');
+    if (!n.razon_social) errores.push('La razon social es obligatoria');
+    else if (n.razon_social.length > 200) errores.push('La razon social no puede superar 200 caracteres');
+    if (n.direccion && n.direccion.length > 250) errores.push('La direccion no puede superar 250 caracteres');
+    if (n.fono && n.fono.length > 20) errores.push('El telefono no puede superar 20 caracteres');
+    return errores;
+  },
+  existeEnArchivo: (n, ctx) => (ctx.ocurrencias.get(n.ruc) || 0) > 1,
+  insert: () => ({
+    sql: `INSERT INTO cliente (${CAMPOS.join(', ')})
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (ruc) DO UPDATE SET
+        razon_social = EXCLUDED.razon_social,
+        direccion = EXCLUDED.direccion,
+        fono = EXCLUDED.fono
+      RETURNING *`,
+    valores: (n) => [n.ruc, n.razon_social, n.direccion, n.fono],
+  }),
+  update: (ruc) => ({
+    sql: 'UPDATE cliente SET ruc = $1, razon_social = $2, direccion = $3, fono = $4 WHERE ruc = $5 RETURNING *',
+    valores: (n) => [n.ruc, n.razon_social, n.direccion, n.fono, ruc],
+  }),
+};
+
+router.post('/importar/preview', async (req, res, next) => {
+  try {
+    const filas = leerFilas(req, res);
+    if (!filas) return;
+    const { normalizadas, ctx } = prepararLote(IMPORT_CLIENTE, filas);
+    const existentes = await cargarExistentes(IMPORT_CLIENTE, normalizadas.map((n) => n.ruc));
+    res.json(responderPreview(IMPORT_CLIENTE, normalizadas, ctx, existentes));
+  } catch (err) { next(err); }
+});
+
+router.post('/importar', async (req, res, next) => {
+  try {
+    const filas = leerFilas(req, res);
+    if (!filas) return;
+    const { normalizadas, ctx } = prepararLote(IMPORT_CLIENTE, filas);
+    const existentes = await cargarExistentes(IMPORT_CLIENTE, normalizadas.map((n) => n.ruc));
+
+    const invalidas = validarLoteCompleto(IMPORT_CLIENTE, normalizadas, ctx, existentes);
+    if (invalidas.length > 0) {
+      return res.status(400).json({ error: 'Hay filas invalidas. Corrijalas o use la vista previa', detalle: invalidas });
+    }
+
+    const { insertados, actualizados } = await importarLote(IMPORT_CLIENTE, normalizadas, existentes);
+    res.status(201).json({
+      total: normalizadas.length,
+      insertados,
+      actualizados,
+      mensaje: mensajeResumen(insertados, actualizados, 'clientes'),
+    });
+  } catch (err) { next(err); }
+});
 
 router.get('/', async (req, res, next) => {
   try {

@@ -104,11 +104,34 @@ async function asegurarGuias() {
   await pool.query(`ALTER TABLE chofer ADD COLUMN IF NOT EXISTS tipo_documento VARCHAR(2) DEFAULT '1'`);
 }
 
+// La columna dni se creo como VARCHAR(8), insuficiente para un carnet de extranjeria (9)
+// o un RUC (11) que el propio catalogo de choferes admite como tipo de documento.
+async function asegurarAnchosDocumento() {
+  const ajustes = [
+    { tabla: 'chofer', columna: 'dni', ancho: 15 },
+    { tabla: 'estibador', columna: 'dni', ancho: 15 },
+  ];
+  for (const { tabla, columna, ancho } of ajustes) {
+    const r = await pool.query(
+      `SELECT character_maximum_length AS len
+         FROM information_schema.columns
+        WHERE table_name = $1 AND column_name = $2`,
+      [tabla, columna]
+    );
+    if (!r.rows.length) continue;
+    if (Number(r.rows[0].len) < ancho) {
+      await pool.query(`ALTER TABLE ${tabla} ALTER COLUMN ${columna} TYPE VARCHAR(${ancho})`);
+      console.log(`[schema] ${tabla}.${columna} corregido a VARCHAR(${ancho})`);
+    }
+  }
+}
+
 export async function ensureSchema({ intentos = 5 } = {}) {
   for (let intento = 1; intento <= intentos; intento += 1) {
     try {
       await asegurarVehiculo();
       await asegurarGuias();
+      await asegurarAnchosDocumento();
       const t = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1"
       );

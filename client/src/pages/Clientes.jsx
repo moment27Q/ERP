@@ -1,5 +1,6 @@
 import CrudPage from '../components/CrudPage';
 import { api } from '../api';
+import { IMPORT_CATALOGOS } from '../config/importCatalogos';
 
 const columns = [
   { key: 'id_cliente', label: 'ID' },
@@ -43,6 +44,7 @@ export default function Clientes() {
       update={(id, d) => api.updateCliente(id, d)}
       remove={(id) => api.deleteCliente(id)}
       confirmDelete={handleConfirmDelete}
+      importConfig={IMPORT_CATALOGOS.clientes}
       searchPlaceholder="Buscar por razon social, RUC o direccion..."
     />
   );

@@ -38,18 +38,24 @@ export const api = {
   createChofer: (body) => request('/choferes', { method: 'POST', body: JSON.stringify(body) }),
   updateChofer: (id, body) => request(`/choferes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteChofer: (id) => request(`/choferes/${id}`, { method: 'DELETE' }),
+  previewImportarChoferes: (rows) => request('/choferes/importar/preview', { method: 'POST', body: JSON.stringify({ rows }) }),
+  importarChoferes: (rows) => request('/choferes/importar', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getVehiculos: (search) => request(`/vehiculos${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   getVehiculo: (id) => request(`/vehiculos/${id}`),
   createVehiculo: (body) => request('/vehiculos', { method: 'POST', body: JSON.stringify(body) }),
   updateVehiculo: (id, body) => request(`/vehiculos/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteVehiculo: (id) => request(`/vehiculos/${id}`, { method: 'DELETE' }),
+  previewImportarVehiculos: (rows) => request('/vehiculos/importar/preview', { method: 'POST', body: JSON.stringify({ rows }) }),
+  importarVehiculos: (rows) => request('/vehiculos/importar', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getEstibadores: (search) => request(`/estibadores${search ? `?search=${search}` : ''}`),
   getEstibador: (id) => request(`/estibadores/${id}`),
   createEstibador: (body) => request('/estibadores', { method: 'POST', body: JSON.stringify(body) }),
   updateEstibador: (id, body) => request(`/estibadores/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteEstibador: (id) => request(`/estibadores/${id}`, { method: 'DELETE' }),
+  previewImportarEstibadores: (rows) => request('/estibadores/importar/preview', { method: 'POST', body: JSON.stringify({ rows }) }),
+  importarEstibadores: (rows) => request('/estibadores/importar', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getClientes: (search) => request(`/clientes${search ? `?search=${search}` : ''}`),
   getCliente: (id) => request(`/clientes/${id}`),
@@ -57,6 +63,8 @@ export const api = {
   updateCliente: (id, body) => request(`/clientes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteCliente: (id) => request(`/clientes/${id}`, { method: 'DELETE' }),
   deleteClienteCascada: (id) => request(`/clientes/${id}?cascada=true`, { method: 'DELETE' }),
+  previewImportarClientes: (rows) => request('/clientes/importar/preview', { method: 'POST', body: JSON.stringify({ rows }) }),
+  importarClientes: (rows) => request('/clientes/importar', { method: 'POST', body: JSON.stringify({ rows }) }),
 
   getUsuarios: () => request('/usuarios'),
   getUsuario: (id) => request(`/usuarios/${id}`),

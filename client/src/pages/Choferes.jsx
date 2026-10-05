@@ -1,5 +1,6 @@
 import CrudPage from '../components/CrudPage';
 import { api } from '../api';
+import { IMPORT_CATALOGOS } from '../config/importCatalogos';
 
 const TIPOS_DOCUMENTO = {
   '1': 'DNI',
@@ -50,6 +51,7 @@ export default function Choferes() {
       create={(d) => api.createChofer(d)}
       update={(id, d) => api.updateChofer(id, d)}
       remove={(id) => api.deleteChofer(id)}
+      importConfig={IMPORT_CATALOGOS.choferes}
       searchPlaceholder="Buscar por nombre, documento o placa..."
     />
   );

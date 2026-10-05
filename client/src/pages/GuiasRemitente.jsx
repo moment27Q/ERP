@@ -211,6 +211,105 @@ function configInicial() {
   };
 }
 
+const MODALIDADES_TRASLADO = [
+  ['1', 'Transporte Público'],
+  ['2', 'Transporte Privado'],
+];
+
+const TIPOS_DOC_REF = [
+  ['01', 'Factura'], ['03', 'Boleta'], ['09', 'Guia de Remision'], ['50', 'DAM'], ['52', 'DS'],
+];
+
+const AYUDA_M1_L = 'M1: Vehículo de máximo 8 asientos, sin contar el asiento del conductor. Ejem: Auto, SUV (máx 3 filas de asientos). L: Vehículos de 2 o 3 ruedas. Ejems: Moto Lineal, Mototaxi, Motokar.';
+
+const NOTA_VALIDACION = '* Si marcas "Traslado con Vehículo M1 o L", no es necesario indicar la Placa del Vehículo y Datos del Conductor. * Si marcas "El traslado de la Importación o Exportación es el Total de DAM o DS", no es necesario agregar los ítems a la guía.';
+
+const TRAZOS = {
+  documento: <><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M10 13h5M10 17h5" /></>,
+  datos: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>,
+  items: <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>,
+  referencia: <><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></>,
+  traslado: <><path d="M3 7h11v9H3z" /><path d="M14 10h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.6" /><circle cx="17" cy="18" r="1.6" /></>,
+  persona: <><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20c0-4 3.4-6 7.5-6s7.5 2 7.5 6" /></>,
+  chevron: <path d="M9 6l6 6-6 6" />,
+  mas: <path d="M12 5v14M5 12h14" />,
+  check: <path d="M5 13l4 4 10-10" />,
+  lupa: <><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4-4" /></>,
+  equis: <path d="M6 6l12 12M18 6L6 18" />,
+  etiqueta: <><path d="M3 7h13l5 5-5 5H3z" /><circle cx="7" cy="12" r="1.4" /></>,
+};
+
+function Icono({ name, className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      {TRAZOS[name]}
+    </svg>
+  );
+}
+
+function Campo({ label, required, hint, className = '', children }) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-1 block text-xs font-medium text-primary-600">
+        {label}{required && <span className="text-red-500"> *</span>}
+      </span>
+      {children}
+      {hint && <span className="mt-1 block text-[11px] leading-4 text-gray-500">{hint}</span>}
+    </label>
+  );
+}
+
+function Seccion({ icon, title, accion, children }) {
+  return (
+    <section className="mb-6">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-600">
+          {icon && <Icono name={icon} className="w-4 h-4 text-gray-400" />}
+          {title}
+        </h3>
+        {accion}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SubSeccion({ icon, title, children }) {
+  return (
+    <div className="mb-3">
+      <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-500">
+        {icon && <Icono name={icon} className="w-3.5 h-3.5 text-gray-400" />}
+        {title}
+      </h4>
+      {children}
+    </div>
+  );
+}
+
+function Check({ checked, onChange, label, className = '' }) {
+  return (
+    <label className={`flex cursor-pointer select-none items-start gap-2 ${className}`}>
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} className="sr-only" />
+      <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border transition-colors ${checked ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-400 bg-white'}`}>
+        {checked && <Icono name="check" className="w-3 h-3" />}
+      </span>
+      <span className="text-sm leading-5 text-gray-700">{label}</span>
+    </label>
+  );
+}
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-2">
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} className="sr-only" />
+      <span className={`flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${checked ? 'bg-primary-600' : 'bg-gray-300'}`}>
+        <span className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </span>
+      <span className="text-sm text-gray-700">{label}</span>
+    </label>
+  );
+}
+
 export default function Guias() {
   const [guias, setGuias] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -233,6 +332,9 @@ export default function Guias() {
   const [importMsg, setImportMsg] = useState('');
   const [importError, setImportError] = useState('');
   const [importWarn, setImportWarn] = useState('');
+  const [tab, setTab] = useState('datos');
+  const [verComplementarios, setVerComplementarios] = useState(false);
+  const [verDestinatario, setVerDestinatario] = useState(true);
 
   const loadData = async (params = {}) => {
     setLoading(true);
@@ -287,7 +389,17 @@ export default function Guias() {
     setEditing(null);
     setForm(configInicial());
     setError('');
+    setTab('datos');
+    setVerComplementarios(false);
+    setVerDestinatario(true);
     setShowForm(true);
+  };
+
+  const limpiarFormulario = () => {
+    setForm(configInicial());
+    setError('');
+    setVerComplementarios(false);
+    setTab('datos');
   };
 
   const openEdit = (g) => {
@@ -353,6 +465,9 @@ export default function Guias() {
       observaciones: g.observaciones || '',
     });
     setError('');
+    setTab('datos');
+    setVerComplementarios(false);
+    setVerDestinatario(true);
     setShowForm(true);
   };
 
@@ -403,6 +518,7 @@ export default function Guias() {
         id_chofer: form.id_chofer === '' ? null : parseInt(form.id_chofer),
         id_estibador: form.id_estibador === '' ? null : parseInt(form.id_estibador),
         items: itemsFiltrados.map(parseItemBackend),
+        docs_referenciado: (form.docs_referenciado || []).filter((d) => limpia(d.numero)),
         vehiculos_secundarios: form.vehiculos_secundarios.filter((v) => v.placa),
         conductores_secundarios: form.conductores_secundarios.filter((c) => c.num_doc),
       };
@@ -546,9 +662,14 @@ export default function Guias() {
     }
   };
 
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none';
-  const labelCls = 'block text-xs font-medium text-gray-600 mb-1';
-  const sectionTitle = 'col-span-full text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-1 mt-2';
+  const inputCls = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-gray-50 disabled:text-gray-400';
+  const btnPrimario = 'inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700 disabled:opacity-60';
+  const btnSecundario = 'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50';
+  const tabCls = (activo) => `-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm transition ${activo ? 'border-primary-600 font-semibold text-primary-700' : 'border-transparent font-medium text-gray-500 hover:text-gray-700'}`;
+  const celda = 'rounded-md border border-gray-300 bg-white p-3';
+
+  const itemsInformados = form.items.filter((i) => (i.descripcion || '').trim() || (i.cod_item || '').trim() || String(i.cantidad || '').trim() || String(i.peso_item || '').trim()).length;
+  const documentoTitulo = String(form.cod_tip_gur || '09') === '09' ? 'GUIA DE REMISIÓN REMITENTE' : 'GUIA DE REMISIÓN TRANSPORTISTA';
 
   return (
     <div>
@@ -664,132 +785,320 @@ export default function Guias() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-lg font-semibold">{editing ? 'Editar' : 'Nueva'} Guia de Remision Remitente</h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 p-4">
+          <form onSubmit={handleSave} className="mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-md border border-gray-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-300 bg-white px-5 py-3.5">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600">
+                  <Icono name="documento" className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-bold leading-6 text-[#0a114a]">{documentoTitulo}</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {editing ? `Editando la guia ${editing.numero_guia}` : 'Crear nueva Guia de Remision Electronica (GRE) - Remitente'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ring-black/10 ${ESTADO_COLOR[editing?.grt_estado || 'BORRADOR'] || 'bg-gray-100 text-gray-600'}`}>
+                  {editing?.grt_estado || 'BORRADOR'}
+                </span>
+                <button type="button" onClick={limpiarFormulario} className={btnSecundario}>Limpiar</button>
+                <button type="button" onClick={() => setShowForm(false)} className={btnSecundario}>Cancelar</button>
+                <button type="submit" disabled={saving} className={btnPrimario}>{saving ? 'Guardando...' : 'Guardar'}</button>
+              </div>
             </div>
-            <form onSubmit={handleSave} className="p-5">
-              {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded border border-red-200 mb-4">{error}</div>}
 
-              {/* Datos de la guia (columnas de la tabla) */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
-                <h3 className={sectionTitle}>Datos de la Guia</h3>
-                <div>
-                  <label className={labelCls}>Fecha</label>
-                  <input type="date" value={form.fecha || ''} onChange={(e) => setField('fecha', e.target.value)} className={inputCls} />
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</div>}
+
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className={celda}>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Tipo de comprobante</p>
+                  <p className="mt-1 text-sm font-bold leading-5 text-[#0a114a]">{documentoTitulo}</p>
                 </div>
-                <div>
-                  <label className={labelCls}>Hora</label>
-                  <input type="time" value={form.hora || ''} onChange={(e) => setField('hora', e.target.value)} className={inputCls} />
+                <div className={celda}>
+                  <label htmlFor="grr-serie" className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Serie</label>
+                  <input id="grr-serie" type="text" value={form.grt_serie || ''} onChange={(e) => setField('grt_serie', e.target.value)} className="mt-1 w-full rounded border border-transparent bg-transparent p-0 text-sm font-semibold text-[#0a114a] outline-none transition focus:border-primary-400" />
                 </div>
-                <div>
-                  <label className={labelCls}>Asistente (ASIST)</label>
-                  <select value={form.id_estibador || ''} onChange={(e) => setField('id_estibador', e.target.value)} className={inputCls}>
-                    <option value="">Seleccionar...</option>
-                    {estibadores.map((x) => <option key={x.id_estibador} value={x.id_estibador}>{x.nombre_completo}</option>)}
-                  </select>
+                <div className={celda}>
+                  <label htmlFor="grr-fecha" className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Fecha de emision</label>
+                  <input id="grr-fecha" type="date" value={form.fecha || ''} onChange={(e) => setField('fecha', e.target.value)} className="mt-1 w-full rounded border border-transparent bg-transparent p-0 text-sm font-semibold text-[#0a114a] outline-none transition focus:border-primary-400" />
                 </div>
-                <div>
-                  <label className={labelCls}>Sector (SECT)</label>
-                  <input type="text" value={form.sector || ''} onChange={(e) => setField('sector', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>N Guia (GUIA)</label>
-                  <input type="text" value={form.numero_guia || ''} onChange={(e) => setField('numero_guia', e.target.value)} className={inputCls} placeholder="Ej: 000001" />
-                </div>
-                <div>
-                  <label className={labelCls}>Fecha Entrega</label>
-                  <input type="date" value={form.fecha_entrega || ''} onChange={(e) => setField('fecha_entrega', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Proveedor</label>
-                  <select value={form.id_proveedor || ''} onChange={(e) => onSelectProveedor(e.target.value)} className={inputCls}>
-                    <option value="">Seleccionar...</option>
-                    {clientes.map((c) => <option key={c.id_cliente} value={c.id_cliente}>{c.razon_social}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Destinatario</label>
-                  <select value={form.id_destinatario || ''} onChange={(e) => onSelectDestinatario(e.target.value)} className={inputCls}>
-                    <option value="">Seleccionar...</option>
-                    {clientes.map((c) => <option key={c.id_cliente} value={c.id_cliente}>{c.razon_social}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Cantidad (CANT)</label>
-                  <input type="number" step="0.01" value={form.cantidad || ''} onChange={(e) => setField('cantidad', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Unidad (UNID)</label>
-                  <input type="text" value={form.unidad || ''} onChange={(e) => setField('unidad', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Peso</label>
-                  <input type="number" step="0.001" value={form.peso || ''} onChange={(e) => setField('peso', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Tipo</label>
-                  <input type="text" value={form.tipo || ''} onChange={(e) => setField('tipo', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Orden</label>
-                  <input type="text" value={form.orden || ''} onChange={(e) => setField('orden', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Suma</label>
-                  <input type="number" step="0.01" value={form.suma || ''} onChange={(e) => setField('suma', e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Chofer</label>
-                  <select value={form.id_chofer || ''} onChange={(e) => setField('id_chofer', e.target.value)} className={inputCls}>
-                    <option value="">Seleccionar...</option>
-                    {choferes.map((c) => <option key={c.id_chofer} value={c.id_chofer}>{c.nombre_completo}</option>)}
-                  </select>
+                <div className={celda}>
+                  <label htmlFor="grr-fecha-traslado" className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Fecha de inicio de traslado</label>
+                  <input id="grr-fecha-traslado" type="date" value={form.fecha_traslado || ''} onChange={(e) => setField('fecha_traslado', e.target.value)} className="mt-1 w-full rounded border border-transparent bg-transparent p-0 text-sm font-semibold text-[#0a114a] outline-none transition focus:border-primary-400" />
                 </div>
               </div>
 
-              {/* Items / Productos */}
-              <div className="mb-2">
-                <h3 className={sectionTitle}>Items / Productos</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600">
-                      <tr>
-                        <th className="px-2 py-2 text-left font-medium">Item</th>
-                        <th className="px-2 py-2 text-left font-medium">Cod *</th>
-                        <th className="px-2 py-2 text-left font-medium">Descripcion *</th>
-                        <th className="px-2 py-2 text-left font-medium">Unid</th>
-                        <th className="px-2 py-2 text-left font-medium">Cant *</th>
-                        <th className="px-2 py-2 text-left font-medium">Peso *</th>
-                        <th className="px-2 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.items.map((it, i) => (
-                        <tr key={i}>
-                          <td className="px-2 py-1"><input value={it.num_linea || i + 1} onChange={(e) => setItem(i, 'num_linea', e.target.value)} className="w-12 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
-                          <td className="px-2 py-1"><input value={it.cod_item || ''} onChange={(e) => setItem(i, 'cod_item', e.target.value)} className="w-20 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
-                          <td className="px-2 py-1"><input value={it.descripcion || ''} onChange={(e) => setItem(i, 'descripcion', e.target.value)} className="w-64 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
-                          <td className="px-2 py-1"><select value={it.unidad_medida || 'NIU'} onChange={(e) => setItem(i, 'unidad_medida', e.target.value)} className="border border-gray-300 rounded px-1 py-1 text-sm">{UNIDADES.map(([v, l]) => <option key={v} value={v}>{v}</option>)}{['NIU','BX'].includes(it.unidad_medida) ? null : <option value={it.unidad_medida}>{it.unidad_medida}</option>}</select></td>
-                          <td className="px-2 py-1"><input type="number" step="0.01" value={it.cantidad || ''} onChange={(e) => setItem(i, 'cantidad', e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
-                          <td className="px-2 py-1"><input type="number" step="0.001" value={it.peso_item || ''} onChange={(e) => setItem(i, 'peso_item', e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
-                          <td className="px-2 py-1"><button type="button" onClick={() => setArr('items', form.items.filter((_, x) => x !== i))} className="text-red-500 hover:text-red-700 text-sm">x</button></td>
+              <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <Campo label="Motivo de Traslado" required>
+                  <select value={form.cod_motivo_traslado || ''} onChange={(e) => setField('cod_motivo_traslado', e.target.value)} className={inputCls}>
+                    <option value="">Seleccione</option>
+                    {MOTIVOS_TRASLADO.map(([v, t]) => <option key={v} value={v}>{v} - {t}</option>)}
+                  </select>
+                </Campo>
+                <div>
+                  <div className="mb-1 flex flex-wrap items-center gap-3">
+                    <label className="text-xs font-medium text-primary-600">Cliente / Destinatario <span className="text-red-500">*</span></label>
+                    <button type="button" onClick={() => setVerComplementarios((v) => !v)} className="text-xs font-medium text-primary-600 underline-offset-2 hover:underline">
+                      {verComplementarios ? '- Ocultar datos complementarios' : '+ Datos Complementarios'}
+                    </button>
+                  </div>
+                  <select value={form.id_proveedor || ''} onChange={(e) => onSelectProveedor(e.target.value)} className={inputCls} aria-label="Cliente / Destinatario">
+                    <option value="">Buscar por RUC / Razon Social</option>
+                    {clientes.map((c) => <option key={c.id_cliente} value={c.id_cliente}>{c.ruc ? `${c.ruc} - ` : ''}{c.razon_social}</option>)}
+                  </select>
+                  {verComplementarios && (
+                    <div className="mt-2 grid grid-cols-1 gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 sm:grid-cols-2">
+                      <Campo label="Tipo de documento">
+                        <select value={form.tipo_doc_remitente || '6'} onChange={(e) => setField('tipo_doc_remitente', e.target.value)} className={inputCls} disabled={form.destinatario_mismo_remitente}>
+                          <option value="6">RUC</option>
+                          <option value="1">DNI</option>
+                        </select>
+                      </Campo>
+                      <Campo label="Nro. documento">
+                        <input value={form.num_doc_remitente || ''} onChange={(e) => setField('num_doc_remitente', e.target.value.replace(/\D/g, ''))} className={inputCls} />
+                      </Campo>
+                      <Campo label="Razon social" className="sm:col-span-2">
+                        <input value={form.razon_social_remitente || ''} onChange={(e) => setField('razon_social_remitente', e.target.value)} className={inputCls} />
+                      </Campo>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-5 flex items-center gap-1 border-b border-gray-300">
+                <button type="button" onClick={() => setTab('datos')} className={tabCls(tab === 'datos')}>
+                  <Icono name="datos" className="h-4 w-4" />Datos
+                </button>
+                <button type="button" onClick={() => setTab('items')} className={tabCls(tab === 'items')}>
+                  <Icono name="items" className="h-4 w-4" />Items de la Guia
+                  <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">{itemsInformados}</span>
+                </button>
+                <button type="button" onClick={() => setTab('refs')} className={tabCls(tab === 'refs')}>
+                  <Icono name="referencia" className="h-4 w-4" />Doc. Referencia
+                  <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">{form.docs_referenciado.length}</span>
+                </button>
+              </div>
+
+              {tab === 'datos' && (
+                <>
+                  <Seccion icon="traslado" title="Datos de traslado">
+                    <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <Check checked={form.indicador_m1_l} onChange={(v) => setField('indicador_m1_l', v)} label="Transporte con Vehiculo M1 o L" />
+                      <Check checked={form.retorno_vehiculo_vacio} onChange={(v) => setField('retorno_vehiculo_vacio', v)} label="Retorna Vehiculo vacio" />
+                      <Check checked={form.retorno_envases_vacios} onChange={(v) => setField('retorno_envases_vacios', v)} label="Retorna Vehiculo con envase vacio" />
+                      <Check checked={form.indicador_traslado_total_dam_ds} onChange={(v) => setField('indicador_traslado_total_dam_ds', v)} label="El traslado de la importacion o exportacion es el total de la DAM o DS" />
+                    </div>
+                    <div className="mb-3 flex justify-end">
+                      <Toggle checked={form.transbordo_programado} onChange={(v) => setField('transbordo_programado', v)} label="Transbordo Programado" />
+                    </div>
+                    <p className="border-t border-gray-300 pt-3 text-[11px] leading-4 text-gray-500">{AYUDA_M1_L}</p>
+                    <p className="mt-1.5 text-[11px] leading-4 text-gray-600">{NOTA_VALIDACION}</p>
+
+                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <Campo label="Modalidad del Traslado" required>
+                        <select value={String(form.tipo_transporte ?? 2)} onChange={(e) => setField('tipo_transporte', Number(e.target.value))} className={inputCls}>
+                          <option value="">Seleccione</option>
+                          {MODALIDADES_TRASLADO.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                        </select>
+                      </Campo>
+                      <Campo label="Observaciones">
+                        <textarea rows={3} maxLength={400} value={form.observaciones || ''} onChange={(e) => setField('observaciones', e.target.value)} className={inputCls} placeholder="Detalle adicional del traslado" />
+                        <span className="mt-1 block text-right text-[11px] text-gray-500">{(form.observaciones || '').length}/400</span>
+                      </Campo>
+                    </div>
+                  </Seccion>
+
+                  <Seccion icon="etiqueta" title="Datos de la Guia">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <Campo label="Nro. Guia (GUIA)">
+                        <input type="text" value={form.numero_guia || ''} onChange={(e) => setField('numero_guia', e.target.value)} className={inputCls} placeholder="Ej: 000001" />
+                      </Campo>
+                      <Campo label="Hora">
+                        <input type="time" value={form.hora || ''} onChange={(e) => setField('hora', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Fecha de entrega">
+                        <input type="date" value={form.fecha_entrega || ''} onChange={(e) => setField('fecha_entrega', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Asistente (ASIST)">
+                        <select value={form.id_estibador || ''} onChange={(e) => setField('id_estibador', e.target.value)} className={inputCls}>
+                          <option value="">Seleccione</option>
+                          {estibadores.map((x) => <option key={x.id_estibador} value={x.id_estibador}>{x.nombre_completo}</option>)}
+                        </select>
+                      </Campo>
+                      <Campo label="Sector (SECT)">
+                        <input type="text" value={form.sector || ''} onChange={(e) => setField('sector', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Conductor / Chofer">
+                        <select value={form.id_chofer || ''} onChange={(e) => setField('id_chofer', e.target.value)} className={inputCls}>
+                          <option value="">Seleccione</option>
+                          {choferes.map((c) => <option key={c.id_chofer} value={c.id_chofer}>{c.nombre_completo}</option>)}
+                        </select>
+                      </Campo>
+                      <Campo label="Cantidad (CANT)">
+                        <input type="number" step="0.01" value={form.cantidad || ''} onChange={(e) => setField('cantidad', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Unidad (UNID)">
+                        <input type="text" value={form.unidad || ''} onChange={(e) => setField('unidad', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Peso">
+                        <input type="number" step="0.001" value={form.peso || ''} onChange={(e) => setField('peso', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Tipo">
+                        <input type="text" value={form.tipo || ''} onChange={(e) => setField('tipo', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Orden">
+                        <input type="text" value={form.orden || ''} onChange={(e) => setField('orden', e.target.value)} className={inputCls} />
+                      </Campo>
+                      <Campo label="Suma">
+                        <input type="number" step="0.01" value={form.suma || ''} onChange={(e) => setField('suma', e.target.value)} className={inputCls} />
+                      </Campo>
+                    </div>
+                  </Seccion>
+
+                  <div className="overflow-hidden rounded-md border border-gray-300">
+                    <button type="button" onClick={() => setVerDestinatario((v) => !v)} className="flex w-full items-center justify-between gap-3 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100">
+                      <span className="flex items-center gap-2 text-sm font-bold text-[#0a114a]">
+                        <Icono name="chevron" className={`h-4 w-4 text-gray-400 transition-transform ${verDestinatario ? 'rotate-90' : ''}`} />
+                        Destinatario
+                      </span>
+                      <span className="truncate text-xs text-gray-500">{form.razon_social_destinatario || 'Sin destinatario asignado'}</span>
+                    </button>
+
+                    {verDestinatario && (
+                      <div className="border-t border-gray-300 p-4">
+                        <SubSeccion icon="persona" title="Datos del destinatario o Proveedor">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <Campo label="Destinatario" required>
+                              <select value={form.id_destinatario || ''} onChange={(e) => onSelectDestinatario(e.target.value)} className={inputCls} disabled={form.destinatario_mismo_remitente}>
+                                <option value="">Seleccione</option>
+                                {clientes.map((c) => <option key={c.id_cliente} value={c.id_cliente}>{c.ruc ? `${c.ruc} - ` : ''}{c.razon_social}</option>)}
+                              </select>
+                            </Campo>
+                            <Campo label="Tipo Doc">
+                              <select value={form.tipo_doc_destinatario || '6'} onChange={(e) => setField('tipo_doc_destinatario', e.target.value)} className={inputCls} disabled={form.destinatario_mismo_remitente}>
+                                <option value="6">RUC</option>
+                                <option value="1">DNI</option>
+                              </select>
+                            </Campo>
+                            <Campo label="Nro. Documento">
+                              <input value={form.num_doc_destinatario || ''} onChange={(e) => setField('num_doc_destinatario', e.target.value.replace(/\D/g, ''))} className={inputCls} disabled={form.destinatario_mismo_remitente} />
+                            </Campo>
+                            <Campo label="Razon Social">
+                              <input value={form.razon_social_destinatario || ''} onChange={(e) => setField('razon_social_destinatario', e.target.value)} className={inputCls} disabled={form.destinatario_mismo_remitente} />
+                            </Campo>
+                          </div>
+                          <div className="mt-3">
+                            <Check checked={form.destinatario_mismo_remitente} onChange={(v) => setField('destinatario_mismo_remitente', v)} label="El destinatario es el mismo que el remitente" />
+                          </div>
+                        </SubSeccion>
+
+                        <div className="border-t border-gray-200 pt-3">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <Campo label="Direccion de partida" required>
+                              <input value={form.dir_partida || ''} onChange={(e) => setField('dir_partida', e.target.value)} className={inputCls} />
+                            </Campo>
+                            <Campo label="Distrito de partida" required>
+                              <input value={form.distrito_partida || ''} onChange={(e) => setField('distrito_partida', e.target.value)} className={inputCls} />
+                            </Campo>
+                            <Campo label="Direccion de llegada">
+                              <input value={form.dir_llegada || ''} onChange={(e) => setField('dir_llegada', e.target.value)} className={inputCls} />
+                            </Campo>
+                            <Campo label="Distrito de llegada">
+                              <input value={form.distrito_llegada || ''} onChange={(e) => setField('distrito_llegada', e.target.value)} className={inputCls} />
+                            </Campo>
+                          </div>
+                          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <Campo label="Ubigeo de partida" hint="6 digitos">
+                              <input maxLength={6} value={form.ubigeo_partida || ''} onChange={(e) => setField('ubigeo_partida', e.target.value.replace(/\D/g, ''))} className={inputCls} placeholder="150101" />
+                            </Campo>
+                            <Campo label="Ubigeo de llegada" hint="6 digitos">
+                              <input maxLength={6} value={form.ubigeo_llegada || ''} onChange={(e) => setField('ubigeo_llegada', e.target.value.replace(/\D/g, ''))} className={inputCls} placeholder="150122" />
+                            </Campo>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {tab === 'items' && (
+                <Seccion icon="items" title="Items de la Guia"
+                  accion={<span className="text-xs text-gray-500">Los totales de cantidad y peso se calculan al guardar si no se informan.</span>}>
+                  <div className="overflow-x-auto rounded-md border border-gray-300">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          {['Item', 'Codigo *', 'Descripcion *', 'Unidad', 'Cantidad *', 'Peso *', ''].map((h) => (
+                            <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium">{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <button type="button" onClick={() => setArr('items', [...form.items, emptyItem()])} className="text-primary-600 hover:text-primary-800 text-sm mt-2">+ Agregar item</button>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {form.items.map((it, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2"><input value={it.num_linea || i + 1} onChange={(e) => setItem(i, 'num_linea', e.target.value)} className="w-12 rounded border border-gray-300 px-2 py-1.5 text-sm" /></td>
+                            <td className="px-3 py-2"><input value={it.cod_item || ''} onChange={(e) => setItem(i, 'cod_item', e.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm" /></td>
+                            <td className="px-3 py-2"><input value={it.descripcion || ''} onChange={(e) => setItem(i, 'descripcion', e.target.value)} className="w-72 rounded border border-gray-300 px-2 py-1.5 text-sm" /></td>
+                            <td className="px-3 py-2">
+                              <select value={it.unidad_medida || 'NIU'} onChange={(e) => setItem(i, 'unidad_medida', e.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-sm">
+                                {UNIDADES.map(([v, l]) => <option key={v} value={v}>{v} - {l}</option>)}
+                                {['PZA', 'KG', 'TN', 'M3', 'LT', 'BL', 'PA', 'BX', 'NIU'].includes(it.unidad_medida) ? null : <option value={it.unidad_medida}>{it.unidad_medida}</option>}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2"><input type="number" step="0.01" value={it.cantidad || ''} onChange={(e) => setItem(i, 'cantidad', e.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm" /></td>
+                            <td className="px-3 py-2"><input type="number" step="0.001" value={it.peso_item || ''} onChange={(e) => setItem(i, 'peso_item', e.target.value)} className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm" /></td>
+                            <td className="px-3 py-2">
+                              <button type="button" onClick={() => setArr('items', form.items.filter((_, x) => x !== i))} className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700">
+                                <Icono name="equis" className="h-3.5 w-3.5" />Quitar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button type="button" onClick={() => setArr('items', [...form.items, emptyItem()])} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700">
+                    <Icono name="mas" className="h-4 w-4" />Agregar item
+                  </button>
+                </Seccion>
+              )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t mt-4">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
-              </div>
-            </form>
-          </div>
+              {tab === 'refs' && (
+                <Seccion icon="referencia" title="Doc. Referencia">
+                  {form.docs_referenciado.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
+                      Sin documentos referenciados. Agrega facturas, guias, DAM o DS vinculados a esta guia.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {form.docs_referenciado.map((d, i) => (
+                        <div key={i} className="grid grid-cols-[minmax(0,150px)_minmax(0,1fr)_auto] items-end gap-2 rounded-md border border-gray-200 p-2">
+                          <Campo label="Tipo">
+                            <select value={d.tipo || '01'} onChange={(e) => { const a = [...form.docs_referenciado]; a[i] = { ...a[i], tipo: e.target.value }; setArr('docs_referenciado', a); }} className={inputCls}>
+                              {TIPOS_DOC_REF.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                            </select>
+                          </Campo>
+                          <Campo label="Numero">
+                            <input value={d.numero || ''} onChange={(e) => { const a = [...form.docs_referenciado]; a[i] = { ...a[i], numero: e.target.value }; setArr('docs_referenciado', a); }} className={inputCls} placeholder="F001-00000001" />
+                          </Campo>
+                          <button type="button" onClick={() => setArr('docs_referenciado', form.docs_referenciado.filter((_, x) => x !== i))} className="mb-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-500 transition hover:border-red-300 hover:text-red-600">
+                            <Icono name="equis" className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" onClick={() => setArr('docs_referenciado', [...form.docs_referenciado, emptyDocRef()])} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700">
+                    <Icono name="mas" className="h-4 w-4" />Agregar doc referenciado
+                  </button>
+                </Seccion>
+              )}
+            </div>
+          </form>
         </div>
       )}
 
